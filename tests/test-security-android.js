@@ -1,7 +1,11 @@
 /**
  * DramaPocket - Android Security, Permissions & WebView Configuration Audit
  * Audits AndroidManifest.xml, MainActivity.java, AndroidBridge.java, build.gradle,
- * and .github/workflows/build-apk.yml against strict security guidelines.
+ * and .github/workflows/build-apk.yml against strict security guidelines:
+ * - Dual-WebView bridge isolation (appWebView vs siteWebView)
+ * - In-app popup window management & non-user-gesture popup blocking
+ * - Safe URL interception, SSL cancellation, domain allowlisting
+ * - Zero hardcoded secrets & minimal manifest permissions
  */
 
 const assert = require('assert');
@@ -51,8 +55,8 @@ function runSecurityAudit() {
     assert(manifest.includes('android.permission.INTERNET'), 'INTERNET permission required');
     console.log('  -> PASS: AndroidManifest.xml permissions and cleartext traffic policy verified');
 
-    // 2. MainActivity WebView Security Audit
-    console.log('[Test 2] MainActivity.java WebView Hardening');
+    // 2. MainActivity WebView Security Audit & Dual-WebView Bridge Isolation
+    console.log('[Test 2] MainActivity.java WebView Hardening & Dual-WebView Bridge Isolation');
     // Never proceed on SSL error
     assert(!mainActivity.includes('handler.proceed()'), 
         'CRITICAL SECURITY FLAW: SSL error handler must NEVER call handler.proceed()!');
@@ -60,34 +64,63 @@ function runSecurityAudit() {
         'SSL error handler must explicitly call handler.cancel()');
 
     // File URL access restrictions
-    assert(mainActivity.includes('setAllowFileAccessFromFileURLs(false)') || mainActivity.includes('setAllowFileAccess(false)') || mainActivity.includes('setAllowFileAccess'), 
+    assert(mainActivity.includes('setAllowFileAccessFromFileURLs(false)') || mainActivity.includes('setAllowFileAccess(false)'), 
         'WebView file access policy must be configured');
     assert(mainActivity.includes('setAllowUniversalAccessFromFileURLs(false)'), 
         'CRITICAL SECURITY: setAllowUniversalAccessFromFileURLs must be explicitly set to false');
-    console.log('  -> PASS: WebView SSL and local file access controls verified');
 
-    // 3. AndroidBridge Security Audit
-    console.log('[Test 3] AndroidBridge.java Security & Domain Allowlist');
-    // Domain allowlist check in fetchHtml
-    assert(bridge.includes('fetchHtml'), 'AndroidBridge must implement fetchHtml');
-    assert(bridge.includes('nartodrama.com'), 
-        'fetchHtml MUST validate URLs against an allowlist containing nartodrama.com');
+    // Dual-WebView Isolation: appWebView vs siteWebView
+    assert(mainActivity.includes('webView.addJavascriptInterface'), 
+        'Primary appWebView must attach AndroidBridge for local application UI');
+    assert(!mainActivity.includes('siteWebView.addJavascriptInterface'), 
+        'CRITICAL ISOLATION: siteWebView must NEVER attach any JavascriptInterface!');
     
-    // Check that arbitrary non-HTTP or file protocols are rejected
-    const hasProtocolOrDomainCheck = bridge.includes('.getHost()') || 
-                                     bridge.includes('.contains("nartodrama.com")') ||
-                                     bridge.includes('startsWith("https://') ||
-                                     bridge.includes('URI.create') ||
-                                     bridge.includes('new URL(');
-    assert(hasProtocolOrDomainCheck, 'Bridge must parse and validate target URL origin/scheme');
+    // User-Agent sanitization for siteWebView (stripping ; wv)
+    assert(mainActivity.includes('replace("; wv", "")') || mainActivity.includes('replace("; wv"'), 
+        'siteWebView User-Agent must strip "; wv" to prevent wrapper-guard triggers');
+    
+    // File access disabled for siteWebView
+    assert(mainActivity.includes('siteSettings.setAllowFileAccess(false)'), 
+        'siteWebView must strictly disable local file access (setAllowFileAccess(false))');
+    console.log('  -> PASS: Dual-WebView bridge isolation and hardening verified');
+
+    // 3. In-App Popup Window Management & Safe Navigation
+    console.log('[Test 3] In-App Popup Window Management & Navigation Interception');
+    // Non-user-gesture popup blocking in onCreateWindow
+    assert(mainActivity.includes('onCreateWindow'), 'MainActivity must implement onCreateWindow');
+    assert(mainActivity.includes('!isUserGesture'), 
+        'onCreateWindow must explicitly block non-user-gesture popups (!isUserGesture)');
+    
+    // In-app popup overlay container
+    assert(mainActivity.includes('popupContainer') && mainActivity.includes('popupWebView'), 
+        'Popup windows must be contained in dismissible in-app overlay (popupContainer / popupWebView)');
+    assert(!mainActivity.includes('popupWebView.addJavascriptInterface'), 
+        'CRITICAL ISOLATION: popupWebView must NEVER attach JavascriptInterface');
+    
+    // Safe subframe navigation (never auto-redirecting subframes or unknown links to external Chrome)
+    assert(mainActivity.includes('isForMainFrame') || mainActivity.includes('!request.isForMainFrame()'), 
+        'WebViewClient must differentiate main-frame from sub-frame navigations');
+    console.log('  -> PASS: In-app popup management and safe navigation verified');
+
+    // 4. AndroidBridge Security & Expanded Domain Allowlist Audit
+    console.log('[Test 4] AndroidBridge.java Security & Domain Allowlist (nartodrama.com, narto-drama.com, nartodrama-api.online)');
+    assert(bridge.includes('fetchHtml'), 'AndroidBridge must implement fetchHtml');
+    assert(bridge.includes('nartodrama.com'), 'Allowlist must include nartodrama.com');
+    assert(bridge.includes('narto-drama.com'), 'Allowlist must include narto-drama.com');
+    assert(bridge.includes('nartodrama-api.online'), 'Allowlist must include nartodrama-api.online');
+    
+    // UI-thread safe URL check in isCallerAllowed
+    assert(bridge.includes('isCallerAllowed'), 'Bridge must verify caller origin in isCallerAllowed');
+    assert(bridge.includes('getCurrentWebViewUrl'), 
+        'isCallerAllowed must use UI-thread synced getCurrentWebViewUrl() to avoid JavaBridge thread crashes');
 
     // Check external browser intent validation
-    assert(bridge.includes('openInExternalBrowser') || bridge.includes('openExternalUrl'), 
+    assert(bridge.includes('openExternalUrl') || bridge.includes('openInExternalBrowser'), 
         'AndroidBridge must expose safe external browser navigation');
-    console.log('  -> PASS: AndroidBridge domain validation and security controls verified');
+    console.log('  -> PASS: AndroidBridge domain validation and thread-safe security controls verified');
 
-    // 4. Zero Hardcoded Secrets Audit
-    console.log('[Test 4] Hardcoded Secrets Scan');
+    // 5. Zero Hardcoded Secrets Audit
+    console.log('[Test 5] Hardcoded Secrets Scan');
     const sensitivePatterns = [
         /AIzaSy[0-9A-Za-z-_]{33}/, // Google API key
         /AKIA[0-9A-Z]{16}/,        // AWS Access Key
@@ -104,8 +137,8 @@ function runSecurityAudit() {
     }
     console.log('  -> PASS: Zero hardcoded secrets confirmed');
 
-    // 5. GitHub Actions Workflow Configuration
-    console.log('[Test 5] GitHub Actions CI Workflow Structure');
+    // 6. GitHub Actions Workflow Configuration
+    console.log('[Test 6] GitHub Actions CI Workflow Structure');
     assert(workflow.includes('actions/checkout'), 'CI workflow must use actions/checkout');
     assert(workflow.includes('actions/setup-java'), 'CI workflow must configure Java');
     assert(workflow.includes('actions/upload-artifact'), 'CI workflow must upload APK artifact');

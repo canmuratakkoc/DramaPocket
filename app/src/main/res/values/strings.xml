@@ -5,4 +5,6 @@
     <string name="pick_video_title">Yerel Video Seç</string>
     <string name="notification_downloading">İndiriliyor</string>
     <string name="ssl_error_warning">Güvenli olmayan SSL bağlantısı reddedildi.</string>
+    <string name="popup_title">Harici Sayfa / Reklam Doğrulama</string>
+    <string name="btn_close_popup">✕ Kapat</string>
 </resources>

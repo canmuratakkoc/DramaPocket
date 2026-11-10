@@ -1257,6 +1257,8 @@
     var fallbackCard = document.getElementById('player-fallback-card');
     var fallbackBtn = document.getElementById('player-open-site-btn');
     var closeBtn = document.getElementById('player-close-btn');
+    var bottomBar = document.getElementById('player-bottom-bar');
+    var altSiteBtn = document.getElementById('player-alt-site-btn');
 
     if (!modal) return;
 
@@ -1268,8 +1270,9 @@
     var epName = episode ? (episode.title || (epNumber ? (epNumber + '. Bölüm') : 'Bölüm')) : '';
     if (epTitleEl) epTitleEl.textContent = epName;
 
-    // Reset components
+    // Reset player components to clean state
     if (videoEl) {
+      videoEl.onerror = null;
       videoEl.pause();
       videoEl.removeAttribute('src');
       videoEl.load();
@@ -1280,14 +1283,14 @@
       iframeEl.style.display = 'none';
     }
     if (fallbackCard) fallbackCard.style.display = 'none';
+    if (bottomBar) bottomBar.style.display = 'none';
 
-    modal.classList.add('open');
-
-    // Close button
+    // Close button handler
     if (closeBtn) {
       closeBtn.onclick = closePlayer;
     }
 
+    // Resolve playback information (using SiteAdapter or provided directPlaybackInfo)
     var playbackInfo = directPlaybackInfo || null;
     if (!playbackInfo) {
       var adapter = getAdapter();
@@ -1300,40 +1303,74 @@
       }
     }
 
-    // Direct video stream (Authorized samples, local videos, or direct stream URLs)
-    if (playbackInfo && (playbackInfo.type === 'direct' || playbackInfo.streamUrl) && videoEl) {
-      videoEl.style.display = 'block';
-      var streamUrl = playbackInfo.streamUrl || episode.directUrl;
+    var episodePageUrl = (playbackInfo && playbackInfo.pageUrl) ||
+      (episode && (episode.url || episode.watch_url)) ||
+      (drama && drama.url) ||
+      'https://nartodrama.com';
 
-      // Handle stream errors (e.g. desktop browsers without native HLS support or expired tokens)
+    // 1. Direct video stream (Authorized samples, local videos, or direct HLS/MP4 stream URLs)
+    if (playbackInfo && (playbackInfo.type === 'direct' || playbackInfo.streamUrl) && videoEl) {
+      modal.classList.add('open');
+      videoEl.style.display = 'block';
+
+      var primaryStream = playbackInfo.streamUrl || (episode && episode.directUrl) || '';
+      var fallbackStream = (playbackInfo.directPlayUrl && playbackInfo.directPlayUrl !== primaryStream) ? playbackInfo.directPlayUrl :
+        (playbackInfo.hlsPlayUrl && playbackInfo.hlsPlayUrl !== primaryStream ? playbackInfo.hlsPlayUrl : null);
+
+      var triedFallback = false;
+
+      // Handle stream errors (e.g. desktop browsers without native HLS support or tokens requiring ad-gate)
       videoEl.onerror = function () {
-        console.warn('[DramaApp] Video element failed to play stream:', streamUrl);
+        console.warn('[DramaApp] Video element failed to play stream:', videoEl.src);
+
+        // Attempt secondary stream if available
+        if (!triedFallback && fallbackStream && fallbackStream !== videoEl.src) {
+          triedFallback = true;
+          console.log('[DramaApp] Switching to fallback stream:', fallbackStream);
+          videoEl.src = fallbackStream;
+          videoEl.play().catch(function (e) {
+            console.log('[DramaApp] Fallback autoplay error:', e);
+          });
+          return;
+        }
+
+        // Both primary and fallback failed; transition to safe in-app WebView episode view
         videoEl.style.display = 'none';
         videoEl.removeAttribute('src');
+        if (bottomBar) bottomBar.style.display = 'none';
 
-        if (playbackInfo.embedUrl && iframeEl) {
-          iframeEl.style.display = 'block';
-          iframeEl.src = playbackInfo.embedUrl;
-          showToast('Doğrudan akış desteklenmedi, yerleşik oynatıcıya geçildi');
-        } else {
-          if (fallbackCard) {
-            fallbackCard.style.display = 'flex';
-            var errDesc = document.getElementById('player-fallback-desc');
-            if (errDesc) {
-              errDesc.textContent = 'Doğrudan video akışı bu ortamda oynatılamadı. Bölümü kesintisiz izlemek için canlı site görünümünü açabilirsiniz.';
-            }
+        if (fallbackCard) {
+          fallbackCard.style.display = 'flex';
+          var fallbackTitle = document.getElementById('player-fallback-title');
+          var errDesc = document.getElementById('player-fallback-desc');
+          var openSiteText = document.getElementById('player-open-site-text');
+
+          if (fallbackTitle) fallbackTitle.textContent = 'Uygulama İçi Oynatıcı';
+          if (errDesc) {
+            errDesc.textContent = (playbackInfo && playbackInfo.adGateDetected)
+              ? 'Bu bölüm NartoDrama reklam doğrulaması ("İzlemeden önce reklam") veya oturum gerektirmektedir. Kesintisiz izlemek için bölümü güvenli uygulama içi oynatıcıda açabilirsiniz.'
+              : 'Doğrudan video akışı bu ortamda oynatılamadı. Bölümü kesintisiz izlemek için güvenli uygulama içi oynatıcıda açabilirsiniz.';
           }
-          if (fallbackBtn) {
-            fallbackBtn.onclick = function () {
-              var targetUrl = (episode && (episode.playUrl || episode.url)) || (playbackInfo && (playbackInfo.pageUrl || playbackInfo.streamUrl)) || (drama && drama.url) || 'https://nartodrama.com';
-              openSiteUrl(targetUrl);
-            };
-          }
-          showToast('Video akışı açılamadı, Canlı Site moduna yönlendirildi');
+          if (openSiteText) openSiteText.textContent = 'Uygulama İçi Oynatıcıda Aç';
         }
+
+        if (fallbackBtn) {
+          fallbackBtn.onclick = function () {
+            openSiteUrl(episodePageUrl);
+          };
+        }
+        showToast('Video akışı açılamadı, uygulama içi oynatıcı hazırlandı');
       };
 
-      videoEl.src = streamUrl;
+      videoEl.src = primaryStream;
+
+      // Show bottom action bar for NartoDrama episodes (allows switching to in-app webview player anytime)
+      if (!playbackInfo.isAuthorizedSample && bottomBar && altSiteBtn) {
+        bottomBar.style.display = 'flex';
+        altSiteBtn.onclick = function () {
+          openSiteUrl(episodePageUrl);
+        };
+      }
 
       // Restore playback progress
       if (global.DramaStorage && episode && episode.id) {
@@ -1348,20 +1385,45 @@
       });
 
       // Track playback progress every 5 seconds
-      startPlaybackTracking(drama, episode, videoEl, streamUrl);
+      startPlaybackTracking(drama, episode, videoEl, primaryStream);
 
-    // Sandboxed iframe embed
-    } else if (playbackInfo && playbackInfo.type === 'embed' && playbackInfo.embedUrl && iframeEl) {
-      iframeEl.style.display = 'block';
-      iframeEl.src = playbackInfo.embedUrl;
-
-    // Live site fallback
+    // 2. In-App WebView Playback (Ad-gate verification required or no direct stream without interactive session)
+    // NEVER load NartoDrama in an iframe (X-Frame-Options: DENY and ND-WG-PROBE block framing / redirect to /open-in-browser)
     } else {
-      if (fallbackCard) fallbackCard.style.display = 'flex';
+      var bridge = getBridge();
+      // On real Android, immediately launch the top-level siteWebView with the "← DramaPocket'a Dön" bar
+      if (bridge && typeof bridge.openSiteWebView === 'function') {
+        showToast('Bölüm uygulama içi oynatıcıda açılıyor...');
+        bridge.openSiteWebView(episodePageUrl);
+        return;
+      }
+
+      // Browser / dev fallback: show the clean player launch card
+      modal.classList.add('open');
+      if (videoEl) videoEl.style.display = 'none';
+      if (iframeEl) {
+        iframeEl.style.display = 'none';
+        iframeEl.src = 'about:blank';
+      }
+      if (bottomBar) bottomBar.style.display = 'none';
+
+      if (fallbackCard) {
+        fallbackCard.style.display = 'flex';
+        var fallbackTitle = document.getElementById('player-fallback-title');
+        var errDesc = document.getElementById('player-fallback-desc');
+        var openSiteText = document.getElementById('player-open-site-text');
+
+        if (fallbackTitle) fallbackTitle.textContent = 'Uygulama İçi Oynatıcı Modu';
+        if (errDesc) {
+          errDesc.textContent = (playbackInfo && playbackInfo.adGateNote) ||
+            'Bu bölüm NartoDrama reklam doğrulaması ("İzlemeden önce reklam") veya etkileşimli oynatıcı gerektirmektedir. Kesintisiz izlemek için uygulama içi görünümde açabilirsiniz.';
+        }
+        if (openSiteText) openSiteText.textContent = 'Uygulama İçi Oynatıcıda İzle';
+      }
+
       if (fallbackBtn) {
         fallbackBtn.onclick = function () {
-          var targetUrl = (episode && (episode.playUrl || episode.url)) || (playbackInfo && (playbackInfo.pageUrl || playbackInfo.streamUrl)) || (drama && drama.url) || 'https://nartodrama.com';
-          openSiteUrl(targetUrl);
+          openSiteUrl(episodePageUrl);
         };
       }
     }
@@ -1423,6 +1485,11 @@
 
     if (iframeEl) {
       iframeEl.src = 'about:blank';
+    }
+
+    var bottomBar = document.getElementById('player-bottom-bar');
+    if (bottomBar) {
+      bottomBar.style.display = 'none';
     }
 
     if (modal) {

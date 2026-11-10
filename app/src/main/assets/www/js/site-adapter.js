@@ -461,6 +461,63 @@
   }
 
   /**
+   * Linear O(N) bracket-balanced JSON array extractor
+   * Ensures large arrays like episodeItemsRaw (350KB+) parse cleanly without regex truncation
+   */
+  function extractBalancedJsonArray(text, marker) {
+    if (!text || typeof text !== 'string') return null;
+    var markerIdx = text.indexOf(marker);
+    if (markerIdx === -1) return null;
+
+    var bracketStart = text.indexOf('[', markerIdx);
+    if (bracketStart === -1) return null;
+
+    var depth = 0;
+    var inString = false;
+    var stringChar = '';
+    var isEscaped = false;
+    var endIdx = -1;
+    var len = text.length;
+
+    for (var i = bracketStart; i < len; i++) {
+      var char = text[i];
+      if (inString) {
+        if (isEscaped) {
+          isEscaped = false;
+        } else if (char === '\\') {
+          isEscaped = true;
+        } else if (char === stringChar) {
+          inString = false;
+        }
+      } else {
+        if (char === '"' || char === "'") {
+          inString = true;
+          stringChar = char;
+        } else if (char === '[') {
+          depth++;
+        } else if (char === ']') {
+          depth--;
+          if (depth === 0) {
+            endIdx = i;
+            break;
+          }
+        }
+      }
+    }
+
+    if (endIdx === -1) return null;
+
+    var jsonString = text.substring(bracketStart, endIdx + 1);
+    try {
+      var parsed = JSON.parse(jsonString);
+      return Array.isArray(parsed) ? parsed : null;
+    } catch (e) {
+      console.warn('[SiteAdapter] extractBalancedJsonArray parse error:', e);
+      return null;
+    }
+  }
+
+  /**
    * Extract drama details & episodes from detail page HTML
    */
   function extractDetailsFromHtml(html, pageUrl) {
@@ -517,39 +574,43 @@
     var appMatch = html.match(/const\s+movieSourceAppName\s*=\s*["']([^"']+)["'];/i);
     if (appMatch) sourceAppName = appMatch[1];
 
-    // 4. Extract embedded episodeItemsRaw array
-    var epRawMatch = html.match(/const\s+episodeItemsRaw\s*=\s*(\[[\s\S]*?\]);\s*(?:const|var|let)/i) ||
-      html.match(/episodeItemsRaw\s*=\s*(\[[\s\S]*?\]);/i);
-
-    if (epRawMatch) {
-      try {
-        var rawEpisodes = JSON.parse(epRawMatch[1]);
-        if (Array.isArray(rawEpisodes)) {
-          episodes = rawEpisodes.map(function (ep, idx) {
-            var epNum = ep.number || ep.route_episode_number || (idx + 1);
-            var watchUrl = ep.watch_url ? normalizeUrl(ep.watch_url) : (pageUrl + '/' + epNum);
-
-            return {
-              id: ep.id || epNum,
-              number: epNum,
-              title: 'Bölüm ' + epNum,
-              rawTitle: ep.title || '',
-              url: watchUrl,
-              playUrl: ep.play_url || '',
-              directPlayUrl: ep.direct_play_url || '',
-              poster: ep.thumb_url || poster,
-              posterUrl: ep.thumb_url || poster,
-              duration: '2 dk',
-              playable: true,
-              isUnlocked: true,
-              downloadable: false,
-              downloadRestrictionReason: RESTRICTION_NOTE
-            };
-          });
+    // 4. Extract embedded episodeItemsRaw array (using balanced bracket extractor for reliability)
+    var rawEpisodes = extractBalancedJsonArray(html, 'episodeItemsRaw');
+    if (!rawEpisodes) {
+      var epRawMatch = html.match(/const\s+episodeItemsRaw\s*=\s*(\[[\s\S]*?\]);\s*(?:const|var|let)/i) ||
+        html.match(/episodeItemsRaw\s*=\s*(\[[\s\S]*?\]);/i);
+      if (epRawMatch) {
+        try {
+          rawEpisodes = JSON.parse(epRawMatch[1]);
+        } catch (jsonErr) {
+          console.warn('[SiteAdapter] episodeItemsRaw regex parse failed:', jsonErr);
         }
-      } catch (jsonErr) {
-        console.warn('[SiteAdapter] episodeItemsRaw parse failed:', jsonErr);
       }
+    }
+
+    if (Array.isArray(rawEpisodes) && rawEpisodes.length > 0) {
+      episodes = rawEpisodes.map(function (ep, idx) {
+        var epNum = (ep.number !== undefined) ? ep.number : ((ep.episode_number !== undefined) ? ep.episode_number : ((ep.route_episode_number !== undefined) ? ep.route_episode_number : (idx + 1)));
+        var epTitle = (ep.title && !/^Episode\s+\d+$/i.test(ep.title)) ? ep.title : ('Bölüm ' + epNum);
+        var watchUrl = ep.watch_url ? normalizeUrl(ep.watch_url) : (pageUrl + '/' + epNum);
+
+        return {
+          id: ep.id || epNum,
+          number: epNum,
+          title: epTitle,
+          rawTitle: ep.title || '',
+          url: watchUrl,
+          playUrl: ep.play_url || '',
+          directPlayUrl: ep.direct_play_url || '',
+          poster: ep.thumb_url || poster,
+          posterUrl: ep.thumb_url || poster,
+          duration: '2 dk',
+          playable: true,
+          isUnlocked: true,
+          downloadable: false,
+          downloadRestrictionReason: RESTRICTION_NOTE
+        };
+      });
     }
 
     // Fallback: If no episodeItemsRaw found, extract episode links
@@ -766,6 +827,41 @@
 
       var details = extractDetailsFromHtml(fetchRes.html, targetUrl);
 
+      // If overview page had no embedded episodeItemsRaw, pre-fetch episode 1
+      // to enrich all episodes with real play_url & direct_play_url from NartoDrama's player playlist
+      if (details.episodes && details.episodes.length > 0 && !details.episodes[0].playUrl && !details.episodes[0].directPlayUrl) {
+        try {
+          var ep1Url = details.episodes[0].url;
+          if (ep1Url && ep1Url !== targetUrl) {
+            var ep1Res = await fetchHtmlText(ep1Url);
+            if (ep1Res.ok && ep1Res.html) {
+              var fullRaw = extractBalancedJsonArray(ep1Res.html, 'episodeItemsRaw');
+              if (Array.isArray(fullRaw) && fullRaw.length > 0) {
+                var rawMap = {};
+                fullRaw.forEach(function (r, idx) {
+                  var num = r.number || r.route_episode_number || (idx + 1);
+                  rawMap[num] = r;
+                });
+                details.episodes.forEach(function (ep) {
+                  var match = rawMap[ep.number];
+                  if (match) {
+                    if (match.play_url) ep.playUrl = match.play_url;
+                    if (match.direct_play_url) ep.directPlayUrl = match.direct_play_url;
+                    if (match.id) ep.id = match.id;
+                    if (match.thumb_url && (!ep.poster || (details.drama && ep.poster === details.drama.poster))) {
+                      ep.poster = match.thumb_url;
+                      ep.posterUrl = match.thumb_url;
+                    }
+                  }
+                });
+              }
+            }
+          }
+        } catch (enrichErr) {
+          console.warn('[SiteAdapter] Episode playlist enrichment notice:', enrichErr);
+        }
+      }
+
       return {
         drama: details.drama,
         episodes: details.episodes,
@@ -782,13 +878,18 @@
     getPlaybackInfo: async function (episodeOrUrl) {
       // 1. Check if this is an authorized sample video
       if (typeof episodeOrUrl === 'object' && episodeOrUrl !== null && episodeOrUrl.isSample) {
+        var sampleUrl = episodeOrUrl.streamUrl || episodeOrUrl.url || '';
         return {
           type: 'direct',
-          streamUrl: episodeOrUrl.streamUrl || episodeOrUrl.url,
+          streamUrl: sampleUrl,
+          directPlayUrl: sampleUrl,
+          hlsPlayUrl: undefined,
           embedUrl: '',
           pageUrl: episodeOrUrl.url || '',
+          allowIframe: false,
+          adGateDetected: false,
           downloadable: true,
-          downloadUrl: episodeOrUrl.downloadUrl || episodeOrUrl.streamUrl || episodeOrUrl.url,
+          downloadUrl: episodeOrUrl.downloadUrl || sampleUrl,
           downloadRestrictionReason: '',
           isAuthorizedSample: true
         };
@@ -797,6 +898,7 @@
       var pageUrl = '';
       var streamUrl = '';
       var directPlayUrl = '';
+      var adGateDetected = false;
 
       if (typeof episodeOrUrl === 'string') {
         pageUrl = normalizeUrl(episodeOrUrl);
@@ -811,30 +913,51 @@
         try {
           var res = await fetchHtmlText(pageUrl);
           if (res.ok && res.html) {
-            var extracted = extractDetailsFromHtml(res.html, pageUrl);
-            if (extracted.episodes && extracted.episodes.length > 0) {
+            if (/adsGate|İzlemeden önce reklam|\\u0130zlemeden \\u00f6nce reklam|adsGateUnlockToken|showTimeGateAd/i.test(res.html)) {
+              adGateDetected = true;
+            }
+            var rawList = extractBalancedJsonArray(res.html, 'episodeItemsRaw');
+            if (rawList && rawList.length > 0) {
               var epNumMatch = pageUrl.match(/\/detail\/watch\/[^/]+\/(\d+)/);
               var epNum = epNumMatch ? parseInt(epNumMatch[1], 10) : 1;
-              var matchingEp = extracted.episodes.find(function (e) { return e.number === epNum; }) || extracted.episodes[0];
+              var matchingEp = rawList.find(function (e) { return (e.number || e.route_episode_number) === epNum; }) || rawList[0];
               if (matchingEp) {
-                streamUrl = matchingEp.playUrl || '';
-                directPlayUrl = matchingEp.directPlayUrl || '';
+                streamUrl = matchingEp.play_url || '';
+                directPlayUrl = matchingEp.direct_play_url || '';
+              }
+            } else {
+              var extracted = extractDetailsFromHtml(res.html, pageUrl);
+              if (extracted.episodes && extracted.episodes.length > 0) {
+                var epNumMatch2 = pageUrl.match(/\/detail\/watch\/[^/]+\/(\d+)/);
+                var epNum2 = epNumMatch2 ? parseInt(epNumMatch2[1], 10) : 1;
+                var matchingEp2 = extracted.episodes.find(function (e) { return e.number === epNum2; }) || extracted.episodes[0];
+                if (matchingEp2) {
+                  streamUrl = matchingEp2.playUrl || '';
+                  directPlayUrl = matchingEp2.directPlayUrl || '';
+                }
               }
             }
           }
         } catch (e) {
-          // continue with embed / external fallback
+          console.warn('[SiteAdapter] getPlaybackInfo fetch error:', e);
         }
+      } else if (pageUrl) {
+        // NartoDrama episode pages include the ad verification mechanism
+        adGateDetected = true;
       }
 
       var finalStream = directPlayUrl || streamUrl;
-      var playbackType = finalStream ? 'direct' : 'embed';
+      var playbackType = finalStream ? 'direct' : 'in_app_webview';
 
       return {
         type: playbackType,
         streamUrl: finalStream || undefined,
-        embedUrl: pageUrl,
+        directPlayUrl: directPlayUrl || undefined,
+        hlsPlayUrl: streamUrl || undefined,
         pageUrl: pageUrl || BASE_URL,
+        allowIframe: false,
+        adGateDetected: adGateDetected,
+        adGateNote: 'NartoDrama bazı bölümlerde izlemeden önce reklam doğrulaması (İzlemeden önce reklam) gerektirebilir. Doğrulama ve oynatma uygulama içi güvenli görünümde gerçekleştirilir.',
         downloadable: false,
         downloadRestrictionReason: RESTRICTION_NOTE,
         isAuthorizedSample: false
@@ -847,6 +970,31 @@
      */
     getAuthorizedSamples: function () {
       return JSON.parse(JSON.stringify(AUTHORIZED_SAMPLES));
+    },
+
+    /**
+     * Helper for robust episodeItemsRaw extraction (used for regression tests)
+     */
+    _extractEpisodeItemsFromHtml: function (html, pageUrl) {
+      var details = extractDetailsFromHtml(html, pageUrl);
+      return details.episodes.map(function (ep) {
+        return {
+          id: ep.id,
+          number: String(ep.number),
+          title: ep.title,
+          rawTitle: ep.rawTitle,
+          url: ep.url,
+          playUrl: ep.playUrl,
+          directPlayUrl: ep.directPlayUrl,
+          poster: ep.poster,
+          posterUrl: ep.posterUrl,
+          duration: ep.duration,
+          playable: ep.playable,
+          isUnlocked: ep.isUnlocked,
+          downloadable: ep.downloadable,
+          downloadRestrictionReason: ep.downloadRestrictionReason
+        };
+      });
     }
   };
 

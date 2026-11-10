@@ -1,7 +1,7 @@
 /**
  * DramaPocket - Main Automated QA Test Runner
- * Runs all unit, integration, frontend, and security test suites,
- * tracks failures, and outputs summary statistics.
+ * Runs all unit, integration, frontend, security, playback regression,
+ * and dev server test suites, tracks failures, and outputs summary statistics.
  */
 
 const { runStorageTests } = require('./test-storage');
@@ -10,6 +10,8 @@ const { runLiveDOMParsingTests } = require('./test-live-dom-parsing');
 const { runLiveE2ETests } = require('./test-live-e2e');
 const { runFrontendTests } = require('./test-frontend-ui');
 const { runSecurityAudit } = require('./test-security-android');
+const { runPlaybackRegressionTests } = require('./test-playback-regression');
+const { runDevServerTests } = require('./test-dev-server');
 
 async function main() {
     console.log('====================================================');
@@ -60,6 +62,16 @@ async function main() {
     // 6. Android & Security Suite
     await executeSuite('Android Manifest, Bridge, WebView & Security Audit', async () => {
         runSecurityAudit();
+    });
+
+    // 7. Playback Regression & Live Episode Extraction Suite
+    await executeSuite('Playback Selection & Live Episode Extraction', async () => {
+        await runPlaybackRegressionTests();
+    });
+
+    // 8. Zero-Dependency Local Dev Server Suite
+    await executeSuite('Zero-Dependency Local Dev Server & Proxy', async () => {
+        await runDevServerTests();
     });
 
     console.log('\n====================================================');

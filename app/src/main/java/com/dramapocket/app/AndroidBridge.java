@@ -2,7 +2,6 @@ package com.dramapocket.app;
 
 import android.app.DownloadManager;
 import android.content.Context;
-import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
@@ -16,7 +15,6 @@ import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
-import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.List;
 import java.util.Locale;
@@ -24,14 +22,17 @@ import java.util.Map;
 import javax.net.ssl.HttpsURLConnection;
 
 /**
- * JavaScript Bridge exposed to the WebView as window.AndroidBridge.
+ * JavaScript Bridge exposed to the primary local WebView as window.AndroidBridge.
  *
  * Security Principles:
- * 1. Origin verification: Privileged bridge actions verify that the current
- *    WebView URL originates from local asset storage (file:///android_asset/www/).
- * 2. Host validation: fetchHtml only permits HTTPS requests to nartodrama.com and its subdomains.
+ * 1. Origin verification: Privileged bridge actions verify that the calling
+ *    WebView currently resides in local asset storage (file:///android_asset/www/).
+ * 2. Strict Host validation: fetchHtml and openSiteWebView permit HTTPS requests
+ *    only to allowlisted hosts: nartodrama.com, narto-drama.com, nartodrama-api.online
+ *    and their legitimate subdomains.
  * 3. File sanitization: Downloaded file names are strictly sanitized to prevent path traversal.
  * 4. Resource throttling: fetchHtml imposes a 1.5 MB read limit and 10-second connect/read timeouts.
+ * 5. Bridge Isolation: This bridge is NEVER attached to siteWebView or popup WebViews.
  */
 public class AndroidBridge {
 
@@ -60,21 +61,31 @@ public class AndroidBridge {
     }
 
     /**
-     * Checks whether a host belongs strictly to nartodrama.com or its subdomains.
+     * Checks whether a host belongs strictly to nartodrama.com, narto-drama.com,
+     * nartodrama-api.online or their subdomains.
      */
-    private boolean isNartoDramaHost(String host) {
+    public static boolean isAllowedSiteHost(String host) {
         if (host == null) {
             return false;
         }
         String lower = host.toLowerCase(Locale.ROOT);
-        return lower.equals("nartodrama.com") || lower.equals("www.nartodrama.com") || lower.endsWith(".nartodrama.com");
+        return lower.equals("nartodrama.com") || lower.endsWith(".nartodrama.com")
+                || lower.equals("narto-drama.com") || lower.endsWith(".narto-drama.com")
+                || lower.equals("nartodrama-api.online") || lower.endsWith(".nartodrama-api.online");
     }
 
     /**
-     * Fetches raw HTML/JSON from nartodrama.com via native HttpsURLConnection.
-     * Bypasses WebView CORS while strictly confining network access to nartodrama.com.
+     * Backward-compatible alias for isAllowedSiteHost.
+     */
+    public boolean isNartoDramaHost(String host) {
+        return isAllowedSiteHost(host);
+    }
+
+    /**
+     * Fetches raw HTML/JSON from allowlisted NartoDrama hosts via native HttpsURLConnection.
+     * Bypasses WebView CORS while strictly confining network access to authorized domains.
      *
-     * @param urlString Target HTTPS URL on nartodrama.com
+     * @param urlString Target HTTPS URL on nartodrama.com / narto-drama.com
      * @return JSON string: {"ok":true,"status":200,"body":"...","finalUrl":"..."}
      *         or {"ok":false,"error":"..."}
      */
@@ -101,9 +112,9 @@ public class AndroidBridge {
                 return result.toString();
             }
 
-            if (!isNartoDramaHost(uri.getHost())) {
+            if (!isAllowedSiteHost(uri.getHost())) {
                 result.put("ok", false);
-                result.put("error", "Host restricted to nartodrama.com: " + uri.getHost());
+                result.put("error", "Host restricted to allowlisted NartoDrama domains: " + uri.getHost());
                 return result.toString();
             }
 
@@ -145,7 +156,7 @@ public class AndroidBridge {
 
             // Validate redirect host if redirected
             URL finalUrl = conn.getURL();
-            if (!isNartoDramaHost(finalUrl.getHost())) {
+            if (!isAllowedSiteHost(finalUrl.getHost())) {
                 conn.disconnect();
                 result.put("ok", false);
                 result.put("error", "Redirected to untrusted external host: " + finalUrl.getHost());
@@ -362,6 +373,7 @@ public class AndroidBridge {
 
     /**
      * Launches external browser for a validated HTTPS URL.
+     * Note: Only called when the user or frontend explicitly requests an external browser.
      */
     @JavascriptInterface
     public void openExternalUrl(String urlString) {
@@ -372,18 +384,13 @@ public class AndroidBridge {
             return;
         }
         activity.runOnUiThread(() -> {
-            try {
-                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(urlString.trim()));
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                activity.startActivity(intent);
-            } catch (Exception ignored) {
-            }
+            activity.launchExternalBrowser(Uri.parse(urlString.trim()));
         });
     }
 
     /**
-     * Opens live NartoDrama website in the WebView with a persistent return button.
-     * Strictly verifies host is nartodrama.com.
+     * Opens live NartoDrama website in the dedicated siteWebView with a persistent return button.
+     * Strictly verifies host is an allowlisted NartoDrama host.
      */
     @JavascriptInterface
     public void openSiteWebView(String urlString) {
@@ -391,7 +398,7 @@ public class AndroidBridge {
             return;
         }
         Uri uri = Uri.parse(urlString.trim());
-        if (!"https".equalsIgnoreCase(uri.getScheme()) || !isNartoDramaHost(uri.getHost())) {
+        if (!"https".equalsIgnoreCase(uri.getScheme()) || !isAllowedSiteHost(uri.getHost())) {
             return;
         }
         activity.runOnUiThread(() -> activity.enterLiveSiteMode(urlString.trim()));
