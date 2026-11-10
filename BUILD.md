@@ -21,15 +21,21 @@ This guide details how to build, test, sign, and install the DramaPocket Android
 The repository includes a ready-to-use, zero-configuration GitHub Actions workflow at [`.github/workflows/build-apk.yml`](.github/workflows/build-apk.yml).
 
 ### How to trigger and retrieve the APK:
-1. Push code to the `main` branch, or trigger manually from the GitHub **Actions** tab via `workflow_dispatch`.
+1. Create a remote repository (e.g. `DramaPocket` on GitHub) and push `main`:
+   ```bash
+   git remote add origin https://github.com/canmuratakkoc/DramaPocket.git
+   git push -u origin main
+   ```
+   *(Or open GitHub Desktop, click **Add Existing Repository**, and click **Publish repository**).*
 2. The workflow automatically:
    - Checks out the repository.
    - Provisions JDK 17 (`actions/setup-java@v4`).
    - Configures Gradle 8.5 (`gradle/actions/setup-gradle@v3`).
-   - Generates the wrapper jar if missing and executes `./gradlew assembleDebug`.
-   - Validates the resulting `app-debug.apk`.
-   - Uploads the APK as an artifact named **`DramaPocket-debug-apk`**.
-3. Download the zipped artifact from the GitHub Actions run summary, extract `app-debug.apk`, and install it directly on your Android phone or emulator.
+   - Runs `gradle assembleDebug --stacktrace --no-daemon`.
+   - Copies `app-debug.apk` to `DramaPocket-debug.apk`.
+   - Validates the resulting binary.
+   - Uploads the APK as an artifact named **`DramaPocket-debug-apk`** containing `DramaPocket-debug.apk`.
+3. Download the zipped artifact from the GitHub Actions run summary, extract `DramaPocket-debug.apk`, and install it directly on your Android phone or emulator.
 
 ---
 
