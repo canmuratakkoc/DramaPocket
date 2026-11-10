@@ -259,6 +259,44 @@ ALL TEST SUITES PASSED CLEANLY!
 
 ---
 
-## 5. Release Approval & Sign-Off
+## 5. Production Debug APK Build & Release Verification
 
-The complete DramaPocket codebase conforms to every architectural, playback, security, localization, and testing requirement. All 8 automated test suites pass without regressions. Approved for release build and deployment.
+The production-ready debug APK was compiled via GitHub Actions CI (`.github/workflows/build-apk.yml`) on commit `07c5db6`, downloaded, unpacked, and verified:
+
+```text
+============================================================
+              DRAMAPOCKET APK RELEASE METADATA
+============================================================
+Workflow Run:      https://github.com/canmuratakkoc/DramaPocket/actions/runs/42906908687
+Run ID:            42906908687
+Commit SHA:        07c5db69bdcc05a3fef71d92f5a56be4124f4210
+Branch:            main
+Build Status:      SUCCESS (build time: 49s)
+Artifact Name:     DramaPocket-debug-apk
+Local APK Paths:   e:\download_series\DramaPocket-debug.apk
+                   e:\download_series\app\build\outputs\apk\debug\DramaPocket-debug.apk
+                   e:\download_series\app\build\outputs\apk\debug\app-debug.apk
+Binary Size:       77,530 bytes (77.5 KB)
+Package Name:      com.dramapocket.app
+Compile/Target:    compileSdk 34, targetSdk 34, minSdk 24
+Architecture:      Pure Android Framework SDK 34 (Zero external Maven dependencies)
+SHA-256 Checksum:  16990E88527DE13E2583D16B0BC9F161B770496C1856882C6D36EDA64BF04E61
+============================================================
+```
+
+### Verified Internal APK Archive Contents (19 Entries):
+- `classes.dex`, `classes2.dex` (Compiled DEX bytecode: `MainActivity.class`, `AndroidBridge.class`, inner classes)
+- `assets/www/index.html` (Turkish responsive SPA entry point)
+- `assets/www/js/app.js` (UI controller, player logic, fallback handler)
+- `assets/www/js/site-adapter.js` (Resilient balanced bracket JSON parser, NartoDrama live extractor)
+- `assets/www/js/storage.js` (Corrupted-JSON-resilient local persistence layer)
+- `AndroidManifest.xml` (Binary AXML: zero cleartext traffic, minimal permissions)
+- `res/layout/activity_main.xml` (Dual-WebView layout with dismissible popup container)
+- `resources.arsc` (Compiled resources table)
+
+---
+
+## 6. Release Approval & Sign-Off
+
+The complete DramaPocket codebase conforms to every architectural, playback, security, localization, and testing requirement. All 8 automated test suites pass without regressions. Approved for release deployment.
+
