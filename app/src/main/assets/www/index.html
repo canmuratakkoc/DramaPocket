@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0f19">
+  <meta name="description" content="DramaPocket - NartoDrama dizi izleme ve kütüphane mobil uygulaması">
+  <title>DramaPocket</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Top Application Bar -->
+    <header class="app-header">
+      <div class="brand-wrapper">
+        <div class="brand-icon" aria-hidden="true">
+          <!-- Play / Drama Pocket Logo Icon -->
+          <svg viewBox="0 0 24 24">
+            <path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v11a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17.5v-11zm6 3.5v4.5a.5.5 0 0 0 .76.43l3.86-2.25a.5.5 0 0 0 0-.86l-3.86-2.25a.5.5 0 0 0-.76.43z"/>
+          </svg>
+        </div>
+        <span class="brand-title">DramaPocket</span>
+      </div>
+      <div class="header-actions">
+        <button id="btn-header-live-site" class="header-pill-btn" type="button" title="NartoDrama Canlı Sitesini Aç">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+          </svg>
+          <span>Canlı Site Modu</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Tab Viewport -->
+    <main class="tab-viewport">
+      <!-- ================================================================
+           TAB 1: ANA SAYFA (HOME)
+           ================================================================ -->
+      <section id="tab-home" class="tab-pane active" aria-labelledby="nav-tab-home">
+        <!-- Live Connection Status Banner -->
+        <div id="home-status-banner" class="status-banner mode-live">
+          <div class="status-header">
+            <div class="status-indicator-group">
+              <span id="status-dot" class="status-dot online" aria-hidden="true"></span>
+              <span id="status-title" class="status-title">NartoDrama Bağlantısı</span>
+            </div>
+            <span id="status-badge" class="meta-tag">Canlı Kaynak</span>
+          </div>
+          <p id="status-desc" class="status-desc">
+            NartoDrama resmi web sitesi bağlantısı kontrol ediliyor...
+          </p>
+          <button id="btn-banner-live-site" class="banner-action-btn" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
+            </svg>
+            <span>NartoDrama Canlı Site Görünümünü Aç</span>
+          </button>
+        </div>
+
+        <!-- Rail 1: İzlemeye Devam Et -->
+        <section id="section-continue-watching" class="rail-section" style="display: none;">
+          <div class="section-header">
+            <h2 class="section-title">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 14.5v-9l6 4.5z"/></svg>
+              İzlemeye Devam Et
+            </h2>
+          </div>
+          <div id="rail-continue-watching" class="horizontal-rail">
+            <!-- Rendered dynamically -->
+          </div>
+        </section>
+
+        <!-- Rail 2: Son Görüntülenenler -->
+        <section id="section-recent-viewed" class="rail-section" style="display: none;">
+          <div class="section-header">
+            <h2 class="section-title">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+              Son Görüntülenenler
+            </h2>
+            <button id="btn-clear-recent" class="section-action-btn" type="button">Temizle</button>
+          </div>
+          <div id="rail-recent-viewed" class="horizontal-rail">
+            <!-- Rendered dynamically -->
+          </div>
+        </section>
+
+        <!-- Main Live Catalog Section -->
+        <section id="section-catalog" class="catalog-section">
+          <div class="section-header">
+            <h2 class="section-title">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/></svg>
+              NartoDrama Kataloğu
+            </h2>
+            <span id="catalog-count-badge" class="meta-tag">Canlı Liste</span>
+          </div>
+
+          <!-- Category Filter Bar -->
+          <div id="catalog-category-bar" class="category-filter-bar">
+            <button class="filter-pill active" data-category="all" type="button">Hepsi</button>
+            <button class="filter-pill" data-category="kore-dizileri" type="button">Kore Dizileri</button>
+            <button class="filter-pill" data-category="cin-dizileri" type="button">Çin Dizileri</button>
+            <button class="filter-pill" data-category="japon-dizileri" type="button">Japon Dizileri</button>
+            <button class="filter-pill" data-category="tayland-dizileri" type="button">Tayland Dizileri</button>
+            <button class="filter-pill" data-category="guncel" type="button">Güncel</button>
+            <button class="filter-pill" data-category="tamamlananlar" type="button">Tamamlananlar</button>
+          </div>
+
+          <!-- Catalog Grid -->
+          <div id="catalog-grid" class="catalog-grid">
+            <!-- Initial loading skeletons -->
+            <div class="drama-card skeleton" style="height: 240px;"></div>
+            <div class="drama-card skeleton" style="height: 240px;"></div>
+            <div class="drama-card skeleton" style="height: 240px;"></div>
+            <div class="drama-card skeleton" style="height: 240px;"></div>
+          </div>
+
+          <!-- Catalog Error / Fallback Box -->
+          <div id="catalog-error-box" class="empty-state-box" style="display: none;">
+            <div class="empty-state-icon">
+              <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+            </div>
+            <h3 class="empty-state-title" id="catalog-error-title">Katalog Yüklenemedi</h3>
+            <p class="empty-state-desc" id="catalog-error-desc">
+              NartoDrama web sunucusuna erişilirken bir kısıtlama veya ağ hatası oluştu.
+            </p>
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+              <button id="btn-retry-catalog" class="btn-sm btn-sm-secondary" type="button">Tekrar Dene</button>
+              <button id="btn-error-live-site" class="btn-sm btn-sm-primary" type="button">Canlı Sitede Aç</button>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <!-- ================================================================
+           TAB 2: KEŞFET / ARA (SEARCH)
+           ================================================================ -->
+      <section id="tab-search" class="tab-pane" aria-labelledby="nav-tab-search">
+        <!-- Search Input Bar -->
+        <div class="search-bar-wrap">
+          <svg class="search-bar-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+          </svg>
+          <input type="search" id="search-input" class="search-input" placeholder="Dizi adı, oyuncu veya tür ara..." autocomplete="off" autocorrect="off" autocapitalize="none">
+          <button id="search-clear-btn" class="search-clear-btn" type="button" style="display: none;" title="Aramayı Temizle">
+            <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+          </button>
+          <button id="search-submit-btn" class="search-submit-btn" type="button">Ara</button>
+        </div>
+
+        <!-- Recent Searches Section -->
+        <div id="recent-searches-box" class="recent-searches-box" style="display: none;">
+          <div class="recent-searches-header">
+            <span>Son Aramalar</span>
+            <button id="clear-searches-btn" class="section-action-btn" type="button">Temizle</button>
+          </div>
+          <div id="search-chips" class="chips-row">
+            <!-- Chips rendered dynamically -->
+          </div>
+        </div>
+
+        <!-- Search Results Grid -->
+        <div id="search-results-grid" class="catalog-grid">
+          <!-- Initial Search Help Box -->
+          <div class="empty-state-box" style="grid-column: 1 / -1;">
+            <div class="empty-state-icon">
+              <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+            </div>
+            <h3 class="empty-state-title">NartoDrama'da Arayın</h3>
+            <p class="empty-state-desc">
+              İzlemek istediğiniz Asya dramasını veya dizi adını yukarıdaki arama kutusuna yazıp arayabilirsiniz.
+            </p>
+          </div>
+        </div>
+
+        <!-- Search Empty State -->
+        <div id="search-empty-box" class="empty-state-box" style="display: none;">
+          <div class="empty-state-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+          </div>
+          <h3 class="empty-state-title" id="search-empty-title">Sonuç Bulunamadı</h3>
+          <p class="empty-state-desc" id="search-empty-desc">
+            Aramanızla eşleşen bir dizi bulunamadı veya arama sonucu canlı sitede mevcut.
+          </p>
+          <button id="search-external-fallback" class="btn-secondary" type="button" style="margin-top: 10px;">
+            <svg viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
+            <span>NartoDrama Üzerinde Ara</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           TAB 3: FAVORİLER (FAVORITES)
+           ================================================================ -->
+      <section id="tab-favorites" class="tab-pane" aria-labelledby="nav-tab-favorites">
+        <div class="section-header">
+          <h2 class="section-title">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+            Favori Dizilerim
+          </h2>
+          <span id="fav-count-badge" class="meta-tag">0 Dizi</span>
+        </div>
+
+        <div id="favorites-grid" class="catalog-grid">
+          <!-- Rendered dynamically -->
+        </div>
+
+        <!-- Empty state when no favorites -->
+        <div id="favorites-empty-box" class="empty-state-box" style="display: none;">
+          <div class="empty-state-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+          </div>
+          <h3 class="empty-state-title">Henüz Favori Diziniz Yok</h3>
+          <p class="empty-state-desc">
+            Katalogdan veya arama ekranından beğendiğiniz dizilerin üzerindeki kalp ikonuna dokunarak favorilerinize ekleyebilirsiniz.
+          </p>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           TAB 4: İNDİRİLENLER & YEREL KÜTÜPHANE (DOWNLOADS)
+           ================================================================ -->
+      <section id="tab-downloads" class="tab-pane" aria-labelledby="nav-tab-downloads">
+        <div class="section-header">
+          <h2 class="section-title">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
+            İndirilenler & Yerel Kütüphane
+          </h2>
+          <span id="downloads-mode-badge" class="meta-tag">Aktif</span>
+        </div>
+
+        <!-- Official NartoDrama Policy Explanation Banner -->
+        <div class="policy-notice-box">
+          <svg class="policy-notice-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M11 17h2v-6h-2v6zm1-15C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zM11 9h2V7h-2v2z"/>
+          </svg>
+          <div class="policy-notice-text">
+            <strong>Bilgi:</strong> NartoDrama resmi SSS politikası gereği dizi bölümlerinin çevrimdışı indirilmesi desteklenmemektedir. İndirme yöneticisi yalnızca açık lisanslı/yetkili medya dosyaları için aktiftir; ayrıca cihazınızdaki yerel video dosyalarını içe aktararak izleyebilirsiniz.
+          </div>
+        </div>
+
+        <!-- Local Video Import Card -->
+        <div class="local-import-card">
+          <div class="local-import-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6 8v3l-5-4 5-4v3c3.31 0 6 2.69 6 6s-2.69 6-6 6v-2c2.21 0 4-1.79 4-4s-1.79-4-4-4z"/>
+            </svg>
+          </div>
+          <h3 class="local-import-title">Yerel Video Dosyası Aç & Oynat</h3>
+          <p class="local-import-desc">
+            Cihaz hafızasındaki veya indirdiğiniz Asya draması / video dosyalarını DramaPocket dahili oynatıcısında oynatın.
+          </p>
+          <input type="file" id="local-video-file-input" accept="video/*" style="display: none;">
+          <button id="btn-pick-local-video" class="btn-secondary" type="button">
+            <svg viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>
+            <span>Yerel Video Dosyası Seç</span>
+          </button>
+        </div>
+
+        <!-- Authorized Sample Media Section -->
+        <section id="section-sample-media" style="margin-bottom: 24px;">
+          <div class="section-header">
+            <h3 class="section-title">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
+              Yetkili Test Medyaları
+            </h3>
+            <span class="meta-tag" style="color: var(--status-success); border-color: rgba(16,185,129,0.3);">Açık Lisans</span>
+          </div>
+          <p style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.4;">
+            Android DownloadManager ve çevrimdışı oynatma işlevlerini güvenle deneyebileceğiniz açık kaynaklı test videoları:
+          </p>
+          <div id="sample-media-list">
+            <!-- Rendered dynamically -->
+          </div>
+        </section>
+
+        <!-- Active & Completed Downloads Queue Section -->
+        <section id="section-active-downloads">
+          <div class="section-header">
+            <h3 class="section-title">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+              İndirme Geçmişi
+            </h3>
+            <span id="downloads-sync-indicator" class="meta-tag">Güncel</span>
+          </div>
+          <div id="downloads-list">
+            <!-- Rendered dynamically -->
+          </div>
+          <div id="downloads-empty-box" class="empty-state-box" style="display: none; padding: 20px 10px;">
+            <p class="empty-state-desc">Henüz indirilmiş veya kuyruğa alınmış bir dosya yok.</p>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <!-- Bottom Navigation Bar (4 Tabs) -->
+    <nav class="bottom-nav" role="navigation" aria-label="Ana Gezinti Menüsü">
+      <button class="nav-item active" data-tab="home" id="nav-tab-home" type="button" aria-selected="true" aria-label="Ana Sayfa">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+        </svg>
+        <span class="nav-label">Ana Sayfa</span>
+      </button>
+
+      <button class="nav-item" data-tab="search" id="nav-tab-search" type="button" aria-selected="false" aria-label="Keşfet ve Ara">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+        </svg>
+        <span class="nav-label">Ara</span>
+      </button>
+
+      <button class="nav-item" data-tab="favorites" id="nav-tab-favorites" type="button" aria-selected="false" aria-label="Favoriler">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+        </svg>
+        <span class="nav-label">Favoriler</span>
+      </button>
+
+      <button class="nav-item" data-tab="downloads" id="nav-tab-downloads" type="button" aria-selected="false" aria-label="İndirilenler ve Kütüphane">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
+        </svg>
+        <span class="nav-label">İndirilenler</span>
+      </button>
+    </nav>
+
+    <!-- ================================================================
+         DRAMA DETAIL MODAL / SHEET
+         ================================================================ -->
+    <div id="detail-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="detail-drama-title">
+      <div class="detail-sheet">
+        <div class="sheet-drag-handle" aria-hidden="true"></div>
+        <div class="sheet-header-bar">
+          <h2 class="sheet-title-text" id="sheet-header-title">Dizi Detayı</h2>
+          <button id="detail-close-btn" class="modal-close-btn" type="button" aria-label="Kapat">
+            <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+          </button>
+        </div>
+
+        <div class="sheet-scroll-body" id="detail-scroll-body">
+          <div class="detail-hero">
+            <div class="detail-poster-wrap">
+              <img id="detail-poster" src="" alt="Dizi Posteri" loading="lazy">
+            </div>
+            <div class="detail-meta-column">
+              <h1 class="detail-drama-title" id="detail-drama-title">Dizi Başlığı</h1>
+              <div class="detail-drama-original" id="detail-drama-original">Orijinal Başlık</div>
+              <div class="detail-meta-tags" id="detail-tags">
+                <!-- Tags rendered dynamically -->
+              </div>
+              <div class="detail-actions-row">
+                <button id="detail-fav-btn" class="detail-btn-fav" type="button">
+                  <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                  <span id="detail-fav-text">Favoriye Ekle</span>
+                </button>
+                <button id="detail-open-site-btn" class="detail-btn-site" type="button" title="NartoDrama Canlı Sayfasında Aç">
+                  <svg viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
+                  <span>Canlı Site</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Summary Synopsis -->
+          <div class="detail-summary-section">
+            <h3 class="detail-summary-title">Özet & Konu</h3>
+            <p class="detail-summary-text" id="detail-synopsis">Yükleniyor...</p>
+          </div>
+
+          <!-- Policy Restriction Banner on Episodes -->
+          <div class="policy-notice-box" style="margin-bottom: 16px;">
+            <svg class="policy-notice-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+            </svg>
+            <div class="policy-notice-text">
+              <strong>İndirme Kısıtlaması:</strong> NartoDrama resmi politikası gereği dizi bölümlerinin çevrimdışı indirilmesi desteklenmemektedir. Bölümleri doğrudan uygulama içinden veya canlı sitede izleyebilirsiniz.
+            </div>
+          </div>
+
+          <!-- Episodes Section -->
+          <div class="episodes-section">
+            <div class="episodes-section-header">
+              <h3 class="detail-summary-title" style="margin-bottom: 0;">Bölümler</h3>
+              <span id="detail-episodes-count" class="meta-tag">0 Bölüm</span>
+            </div>
+            <div id="detail-episodes-grid" class="episodes-grid">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================================
+         IN-APP VIDEO PLAYER MODAL
+         ================================================================ -->
+    <div id="player-modal" class="player-modal" role="dialog" aria-modal="true" aria-label="Video Oynatıcı">
+      <div class="player-top-bar">
+        <button id="player-close-btn" class="modal-close-btn" type="button" aria-label="Oynatıcıyı Kapat">
+          <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+        </button>
+        <div class="player-title-info">
+          <span id="player-drama-title" class="player-main-title">Dizi Başlığı</span>
+          <span id="player-episode-title" class="player-sub-title">Bölüm 1</span>
+        </div>
+        <div style="width: 36px;"></div> <!-- balance spacer -->
+      </div>
+
+      <div id="player-viewport" class="player-viewport-container">
+        <!-- Direct HTML5 video -->
+        <video id="player-video-element" controls playsinline preload="metadata" style="display: none;"></video>
+        <!-- Sandboxed iframe embed if available -->
+        <iframe id="player-iframe-element" sandbox="allow-scripts allow-same-origin allow-presentation" style="display: none;"></iframe>
+        <!-- Live site fallback view card -->
+        <div id="player-fallback-card" class="player-fallback-card" style="display: none;">
+          <div class="player-fallback-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/></svg>
+          </div>
+          <h3 class="empty-state-title" id="player-fallback-title">Canlı Sitede İzleme Modu</h3>
+          <p class="empty-state-desc" id="player-fallback-desc">
+            Bu bölüm NartoDrama korumalı video oynatıcı barındırmaktadır. Bölümü kesintisiz izlemek için canlı site görünümünü açabilirsiniz.
+          </p>
+          <button id="player-open-site-btn" class="banner-action-btn" type="button">
+            <svg viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
+            <span>NartoDrama Canlı Sitede İzle</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating Toast Notification System -->
+    <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+  </div>
+
+  <!-- Runtime Scripts: Storage -> SiteAdapter -> App Controller -->
+  <script src="js/storage.js"></script>
+  <script src="js/site-adapter.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

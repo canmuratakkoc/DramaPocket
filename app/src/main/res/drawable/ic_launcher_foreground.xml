@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="1.2"
+        android:scaleY="1.2"
+        android:translateX="-10.8"
+        android:translateY="-10.8">
+        <!-- Film Reel / Pocket Card shape -->
+        <path
+            android:fillColor="#1e293b"
+            android:pathData="M30,26 C26.686,26 24,28.686 24,32 L24,76 C24,79.314 26.686,82 30,82 L78,82 C81.314,82 84,79.314 84,76 L84,32 C84,28.686 81.314,26 78,26 Z" />
+        <!-- Accent outline -->
+        <path
+            android:strokeColor="#6366f1"
+            android:strokeWidth="2.5"
+            android:pathData="M30,26 C26.686,26 24,28.686 24,32 L24,76 C24,79.314 26.686,82 30,82 L78,82 C81.314,82 84,79.314 84,76 L84,32 C84,28.686 81.314,26 78,26 Z" />
+        <!-- Play Triangle -->
+        <path
+            android:fillColor="#6366f1"
+            android:pathData="M48,40 L66,54 L48,68 Z" />
+        <!-- Film Sprockets Top -->
+        <path
+            android:fillColor="#ec4899"
+            android:pathData="M32,30 h6 v5 h-6 z M44,30 h6 v5 h-6 z M56,30 h6 v5 h-6 z M68,30 h6 v5 h-6 z" />
+    </group>
+</vector>

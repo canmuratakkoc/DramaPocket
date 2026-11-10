@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DramaPocket</string>
+    <string name="return_to_app">← DramaPocket\'a Dön</string>
+    <string name="pick_video_title">Yerel Video Seç</string>
+    <string name="notification_downloading">İndiriliyor</string>
+    <string name="ssl_error_warning">Güvenli olmayan SSL bağlantısı reddedildi.</string>
+</resources>

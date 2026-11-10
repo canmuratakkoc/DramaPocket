@@ -1,0 +1,31 @@
+# Gradle build artifacts
+.gradle/
+build/
+app/build/
+.build_home/
+
+# Android Studio & IntelliJ IDEA
+.idea/
+*.iml
+.navigation/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Local configuration
+local.properties
+
+# Log files
+*.log
+
+# Android Keystore files (NEVER commit release keystores)
+*.jks
+*.keystore
+
+# Output APKs / AABs
+*.apk
+*.aab
+
+# OS generated files
+.DS_Store
+Thumbs.db

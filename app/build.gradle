@@ -1,0 +1,52 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.dramapocket.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.dramapocket.app"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+
+        testInstrumentationRunner "android.test.InstrumentationTestRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            minifyEnabled false
+            debuggable true
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    packaging {
+        resources {
+            excludes += '/META-INF/{AL2.0,LGPL2.1}'
+        }
+    }
+}
+
+// Pure Android Java application using standard framework APIs:
+// - android.app.Activity
+// - android.webkit.WebView / WebViewClient / WebChromeClient
+// - android.app.DownloadManager
+// - java.net.HttpsURLConnection
+// - org.json.JSONObject / JSONArray
+// Zero external dependencies keep the APK ultra-lightweight (<1 MB), blazing fast to build,
+// and free of third-party supply chain risks.
+dependencies {
+}
