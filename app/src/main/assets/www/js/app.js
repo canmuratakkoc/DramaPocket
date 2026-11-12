@@ -12,11 +12,25 @@
     currentCategory: 'all',
     currentDrama: null,
     currentEpisode: null,
+    currentEpisodes: [],
+    currentEpisodesDramaKey: '',
+    currentStreamUrl: '',
     playbackTimer: null,
     downloadsPollTimer: null,
     searchDebounceTimer: null,
     siteInfo: null
   };
+
+  function getDramaLookupKey(drama) {
+    if (!drama) return '';
+    var urls = [drama.dramaUrl, drama.url, drama.id];
+    for (var i = 0; i < urls.length; i++) {
+      var val = String(urls[i] || '').trim();
+      var m = val.match(/\/detail\/watch\/([^/?#]+)/i);
+      if (m && m[1]) return 'slug:' + m[1].toLowerCase();
+    }
+    return String(drama.id || drama.title || '').trim().toLowerCase();
+  }
 
   // Safe Bridge Accessor
   function getBridge() {
@@ -52,7 +66,7 @@
     global.open(url, '_blank', 'noopener,noreferrer');
   }
 
-  // Helper: Toast Notifications
+  // Helper: Dismissible Toast Notifications
   function showToast(message, duration) {
     var container = document.getElementById('toast-container');
     if (!container) return;
@@ -62,18 +76,25 @@
     toast.className = 'toast-message';
     toast.innerHTML =
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>' +
-      '<span>' + escapeHtml(message) + '</span>';
+      '<span>' + escapeHtml(message) + '</span>' +
+      '<button type="button" class="toast-dismiss-btn" aria-label="Bildirimi Kapat">✕</button>';
 
-    container.appendChild(toast);
-
-    setTimeout(function () {
+    var removed = false;
+    function dismissToast() {
+      if (removed) return;
+      removed = true;
       toast.classList.add('toast-out');
       setTimeout(function () {
         if (toast.parentNode) {
           toast.parentNode.removeChild(toast);
         }
-      }, 250);
-    }, dur);
+      }, 200);
+    }
+
+    toast.addEventListener('click', dismissToast);
+    container.appendChild(toast);
+
+    setTimeout(dismissToast, dur);
   }
 
   function escapeHtml(str) {
@@ -183,6 +204,10 @@
       statusDesc.textContent = 'Dizilere ve bölümlere NartoDrama canlı mobil görünümü üzerinden anında erişebilirsiniz.';
     }
 
+    if (banner && global.DramaStorage && global.DramaStorage.isNoticeDismissed('home-status-banner')) {
+      banner.style.display = 'none';
+    }
+
     var openAction = function () {
       openSiteUrl(baseUrl);
     };
@@ -198,6 +223,7 @@
   function renderContinueWatchingRail() {
     var section = document.getElementById('section-continue-watching');
     var rail = document.getElementById('rail-continue-watching');
+    var btnClearContinue = document.getElementById('btn-clear-continue');
     if (!section || !rail || !global.DramaStorage) return;
 
     var list = global.DramaStorage.getContinueWatching();
@@ -208,6 +234,16 @@
 
     section.style.display = 'block';
     rail.innerHTML = '';
+
+    if (btnClearContinue) {
+      btnClearContinue.onclick = function () {
+        if (typeof global.DramaStorage.clearContinueWatching === 'function') {
+          global.DramaStorage.clearContinueWatching();
+        }
+        renderContinueWatchingRail();
+        showToast('İzleme geçmişi temizlendi');
+      };
+    }
 
     list.forEach(function (item) {
       var card = document.createElement('div');
@@ -230,8 +266,15 @@
 
       card.addEventListener('click', function () {
         playEpisode(
-          { id: item.dramaId, title: item.dramaTitle, posterUrl: item.posterUrl, url: item.url },
-          { id: item.episodeId, number: item.episodeNumber, title: item.episodeTitle, url: item.url }
+          { id: item.dramaId, title: item.dramaTitle, posterUrl: item.posterUrl, url: item.dramaUrl || item.url, dramaUrl: item.dramaUrl || item.url },
+          {
+            id: item.episodeId,
+            number: item.episodeNumber,
+            title: item.episodeTitle,
+            url: item.url,
+            playUrl: item.streamUrl || '',
+            directPlayUrl: item.directPlayUrl || item.streamUrl || ''
+          }
         );
       });
 
@@ -1144,6 +1187,11 @@
         '<div class="episode-btn skeleton" style="height:48px;"></div>';
     }
 
+    var detailNotice = document.getElementById('detail-policy-notice');
+    if (detailNotice && global.DramaStorage && global.DramaStorage.isNoticeDismissed('detail-policy-notice')) {
+      detailNotice.style.display = 'none';
+    }
+
     modal.classList.add('open');
 
     // Fetch full details via SiteAdapter
@@ -1160,6 +1208,8 @@
         }
 
         var episodes = (detailRes && Array.isArray(detailRes.episodes)) ? detailRes.episodes : [];
+        state.currentEpisodes = episodes;
+        state.currentEpisodesDramaKey = getDramaLookupKey(state.currentDrama);
         if (episodesCountEl) episodesCountEl.textContent = episodes.length + ' Bölüm';
         renderEpisodesGrid(episodesGrid, episodes);
       } catch (err) {
@@ -1246,8 +1296,136 @@
   }
 
   // ========================================================================
-  // IN-APP VIDEO PLAYER MODAL
+  // IN-APP VIDEO PLAYER MODAL & AUTO-ADVANCE
   // ========================================================================
+  function getAdjacentEpisode(offset) {
+    var list = state.currentEpisodes;
+    var cur = state.currentEpisode;
+    if (!Array.isArray(list) || list.length === 0 || !cur) return null;
+
+    var curIdx = -1;
+    for (var i = 0; i < list.length; i++) {
+      var ep = list[i];
+      if (cur.id && ep.id && String(ep.id) === String(cur.id)) {
+        curIdx = i;
+        break;
+      }
+      if (cur.number !== undefined && cur.number !== '' && ep.number !== undefined && Number(ep.number) === Number(cur.number)) {
+        curIdx = i;
+        break;
+      }
+      if (cur.url && ep.url && ep.url === cur.url) {
+        curIdx = i;
+        break;
+      }
+    }
+
+    if (curIdx !== -1) {
+      var targetIdx = curIdx + offset;
+      if (targetIdx >= 0 && targetIdx < list.length) {
+        return list[targetIdx];
+      }
+    } else if (cur.number !== undefined && cur.number !== '') {
+      var targetNum = Number(cur.number) + offset;
+      for (var j = 0; j < list.length; j++) {
+        if (Number(list[j].number) === targetNum) {
+          return list[j];
+        }
+      }
+    }
+    return null;
+  }
+
+  function updatePlayerEpisodeNavButtons() {
+    var prevBtn = document.getElementById('player-prev-btn');
+    var nextBtn = document.getElementById('player-next-btn');
+    var prevEp = getAdjacentEpisode(-1);
+    var nextEp = getAdjacentEpisode(1);
+
+    if (prevBtn) {
+      if (prevEp) {
+        prevBtn.style.display = 'inline-flex';
+        prevBtn.onclick = function () {
+          showToast('Önceki bölüme geçiliyor: Bölüm ' + (prevEp.number || ''));
+          playEpisode(state.currentDrama, prevEp);
+        };
+      } else {
+        prevBtn.style.display = 'none';
+        prevBtn.onclick = null;
+      }
+    }
+
+    if (nextBtn) {
+      if (nextEp) {
+        nextBtn.style.display = 'inline-flex';
+        nextBtn.onclick = function () {
+          showToast('Sonraki bölüme geçiliyor: Bölüm ' + (nextEp.number || ''));
+          playEpisode(state.currentDrama, nextEp);
+        };
+      } else {
+        nextBtn.style.display = 'none';
+        nextBtn.onclick = null;
+      }
+    }
+  }
+
+  async function ensureEpisodesLoadedForCurrentDrama(drama, episodePageUrl) {
+    if (!drama && !episodePageUrl) return state.currentEpisodes;
+    var key = getDramaLookupKey(drama || { url: episodePageUrl });
+    if (Array.isArray(state.currentEpisodes) && state.currentEpisodes.length > 0 && state.currentEpisodesDramaKey === key) {
+      return state.currentEpisodes;
+    }
+
+    var adapter = getAdapter();
+    if (!adapter || typeof adapter.getDramaDetails !== 'function') return [];
+
+    var lookupTarget = (drama && (drama.dramaUrl || drama.url || drama.id)) || episodePageUrl || '';
+    if (!lookupTarget) return [];
+
+    // Strip episode number suffix if lookupTarget is an episode URL so getDramaDetails fetches overview + ep 1 playlist
+    var slugMatch = String(lookupTarget).match(/^(https?:\/\/[^/]+\/detail\/watch\/[^/?#]+)\/\d+/i);
+    if (slugMatch && slugMatch[1]) {
+      lookupTarget = slugMatch[1] + '?lang=tr-TR';
+    }
+
+    try {
+      var detailRes = await adapter.getDramaDetails(lookupTarget);
+      if (detailRes && Array.isArray(detailRes.episodes) && detailRes.episodes.length > 0) {
+        state.currentEpisodes = detailRes.episodes;
+        state.currentEpisodesDramaKey = key;
+        if (detailRes.drama && state.currentDrama) {
+          state.currentDrama = Object.assign({}, detailRes.drama, state.currentDrama);
+        }
+        updatePlayerEpisodeNavButtons();
+        return state.currentEpisodes;
+      }
+    } catch (e) {
+      console.warn('[DramaApp] ensureEpisodesLoadedForCurrentDrama error', e);
+    }
+    return state.currentEpisodes || [];
+  }
+
+  function saveCurrentEpisodeProgress(drama, episode, posSec, durSec, streamUrl) {
+    if (!global.DramaStorage || !episode) return;
+    if (episode.isSample) return;
+    var dramaUrl = (drama && (drama.dramaUrl || drama.url)) || '';
+    var epUrl = episode.url || episode.watch_url || dramaUrl || '';
+    global.DramaStorage.savePlaybackProgress({
+      dramaId: (drama && drama.id) || '',
+      dramaTitle: (drama && drama.title) || 'Dizi',
+      dramaUrl: dramaUrl,
+      posterUrl: (drama && (drama.posterUrl || drama.poster)) || episode.posterUrl || '',
+      episodeId: episode.id || ('ep_' + (episode.number || '1')),
+      episodeNumber: episode.number !== undefined ? episode.number : '',
+      episodeTitle: episode.title || '',
+      positionSec: posSec || 0,
+      durationSec: durSec || 0,
+      url: epUrl,
+      streamUrl: streamUrl || episode.playUrl || '',
+      directPlayUrl: episode.directPlayUrl || streamUrl || ''
+    });
+  }
+
   async function playEpisode(drama, episode, directPlaybackInfo) {
     var modal = document.getElementById('player-modal');
     var dramaTitleEl = document.getElementById('player-drama-title');
@@ -1257,15 +1435,13 @@
     var fallbackCard = document.getElementById('player-fallback-card');
     var fallbackBtn = document.getElementById('player-open-site-btn');
     var closeBtn = document.getElementById('player-close-btn');
-    var bottomBar = document.getElementById('player-bottom-bar');
-    var altSiteBtn = document.getElementById('player-alt-site-btn');
 
     if (!modal) return;
 
     state.currentDrama = drama || state.currentDrama;
     state.currentEpisode = episode;
 
-    if (dramaTitleEl) dramaTitleEl.textContent = (drama && drama.title) ? drama.title : 'DramaPocket Oynatıcı';
+    if (dramaTitleEl) dramaTitleEl.textContent = (state.currentDrama && state.currentDrama.title) ? state.currentDrama.title : 'DramaPocket Oynatıcı';
     var epNumber = episode ? (episode.number || '') : '';
     var epName = episode ? (episode.title || (epNumber ? (epNumber + '. Bölüm') : 'Bölüm')) : '';
     if (epTitleEl) epTitleEl.textContent = epName;
@@ -1273,6 +1449,7 @@
     // Reset player components to clean state
     if (videoEl) {
       videoEl.onerror = null;
+      videoEl.onended = null;
       videoEl.pause();
       videoEl.removeAttribute('src');
       videoEl.load();
@@ -1283,12 +1460,13 @@
       iframeEl.style.display = 'none';
     }
     if (fallbackCard) fallbackCard.style.display = 'none';
-    if (bottomBar) bottomBar.style.display = 'none';
 
     // Close button handler
     if (closeBtn) {
       closeBtn.onclick = closePlayer;
     }
+
+    updatePlayerEpisodeNavButtons();
 
     // Resolve playback information (using SiteAdapter or provided directPlaybackInfo)
     var playbackInfo = directPlaybackInfo || null;
@@ -1305,8 +1483,13 @@
 
     var episodePageUrl = (playbackInfo && playbackInfo.pageUrl) ||
       (episode && (episode.url || episode.watch_url)) ||
-      (drama && drama.url) ||
+      (state.currentDrama && state.currentDrama.url) ||
       'https://nartodrama.com';
+
+    // Preload episode list in background if not yet populated (e.g. launched from Continue Watching)
+    if (!episode || !episode.isSample) {
+      ensureEpisodesLoadedForCurrentDrama(state.currentDrama, episodePageUrl);
+    }
 
     // 1. Direct video stream (Authorized samples, local videos, or direct HLS/MP4 stream URLs)
     if (playbackInfo && (playbackInfo.type === 'direct' || playbackInfo.streamUrl) && videoEl) {
@@ -1317,7 +1500,28 @@
       var fallbackStream = (playbackInfo.directPlayUrl && playbackInfo.directPlayUrl !== primaryStream) ? playbackInfo.directPlayUrl :
         (playbackInfo.hlsPlayUrl && playbackInfo.hlsPlayUrl !== primaryStream ? playbackInfo.hlsPlayUrl : null);
 
+      state.currentStreamUrl = primaryStream;
       var triedFallback = false;
+
+      // Auto-advance to the next episode when the current video finishes
+      videoEl.onended = async function () {
+        stopPlaybackTracking();
+        if (videoEl.duration > 0) {
+          saveCurrentEpisodeProgress(state.currentDrama, state.currentEpisode, videoEl.duration, videoEl.duration, state.currentStreamUrl);
+        }
+        await ensureEpisodesLoadedForCurrentDrama(state.currentDrama, episodePageUrl);
+        var nextEp = getAdjacentEpisode(1);
+        if (nextEp) {
+          var nextLabel = nextEp.number ? (nextEp.number + '. Bölüme') : 'Sonraki bölüme';
+          showToast(nextLabel + ' otomatik geçiliyor...');
+          playEpisode(state.currentDrama, nextEp);
+        } else {
+          showToast('Dizinin son bölümü tamamlandı.');
+          if (state.currentTab === 'home') {
+            renderContinueWatchingRail();
+          }
+        }
+      };
 
       // Handle stream errors (e.g. desktop browsers without native HLS support or tokens requiring ad-gate)
       videoEl.onerror = function () {
@@ -1326,6 +1530,7 @@
         // Attempt secondary stream if available
         if (!triedFallback && fallbackStream && fallbackStream !== videoEl.src) {
           triedFallback = true;
+          state.currentStreamUrl = fallbackStream;
           console.log('[DramaApp] Switching to fallback stream:', fallbackStream);
           videoEl.src = fallbackStream;
           videoEl.play().catch(function (e) {
@@ -1337,7 +1542,6 @@
         // Both primary and fallback failed; transition to safe in-app WebView episode view
         videoEl.style.display = 'none';
         videoEl.removeAttribute('src');
-        if (bottomBar) bottomBar.style.display = 'none';
 
         if (fallbackCard) {
           fallbackCard.style.display = 'flex';
@@ -1364,20 +1568,19 @@
 
       videoEl.src = primaryStream;
 
-      // Show bottom action bar for NartoDrama episodes (allows switching to in-app webview player anytime)
-      if (!playbackInfo.isAuthorizedSample && bottomBar && altSiteBtn) {
-        bottomBar.style.display = 'flex';
-        altSiteBtn.onclick = function () {
-          openSiteUrl(episodePageUrl);
-        };
+      // Restore playback progress (unless previously completed >= 95%, in which case start fresh from 0)
+      var initialPos = 0;
+      if (global.DramaStorage && episode && (episode.id || episode.url)) {
+        var existingProgress = global.DramaStorage.getEpisodeProgress(episode.id || episode.url);
+        if (existingProgress && existingProgress.positionSec > 0 && !existingProgress.completed) {
+          initialPos = existingProgress.positionSec;
+          videoEl.currentTime = initialPos;
+        }
       }
 
-      // Restore playback progress
-      if (global.DramaStorage && episode && episode.id) {
-        var existingProgress = global.DramaStorage.getEpisodeProgress(episode.id);
-        if (existingProgress && existingProgress.positionSec > 0) {
-          videoEl.currentTime = existingProgress.positionSec;
-        }
+      // Immediately record this episode as the latest watched episode for this drama
+      if (!playbackInfo.isAuthorizedSample) {
+        saveCurrentEpisodeProgress(state.currentDrama, episode, initialPos, 0, primaryStream);
       }
 
       videoEl.play().catch(function (e) {
@@ -1385,27 +1588,26 @@
       });
 
       // Track playback progress every 5 seconds
-      startPlaybackTracking(drama, episode, videoEl, primaryStream);
+      startPlaybackTracking(state.currentDrama, episode, videoEl, primaryStream);
 
     // 2. In-App WebView Playback (Ad-gate verification required or no direct stream without interactive session)
     // NEVER load NartoDrama in an iframe (X-Frame-Options: DENY and ND-WG-PROBE block framing / redirect to /open-in-browser)
     } else {
+      // If upstream explicitly marked the drama/episode unavailable (delisted), show a clean message instead of opening live site
       var bridge = getBridge();
-      // On real Android, immediately launch the top-level siteWebView with the "← DramaPocket'a Dön" bar
-      if (bridge && typeof bridge.openSiteWebView === 'function') {
+      if (!(playbackInfo && playbackInfo.unavailable) && bridge && typeof bridge.openSiteWebView === 'function') {
         showToast('Bölüm uygulama içi oynatıcıda açılıyor...');
         bridge.openSiteWebView(episodePageUrl);
         return;
       }
 
-      // Browser / dev fallback: show the clean player launch card
+      // Browser / dev fallback or unavailable content: show the clean player launch card
       modal.classList.add('open');
       if (videoEl) videoEl.style.display = 'none';
       if (iframeEl) {
         iframeEl.style.display = 'none';
         iframeEl.src = 'about:blank';
       }
-      if (bottomBar) bottomBar.style.display = 'none';
 
       if (fallbackCard) {
         fallbackCard.style.display = 'flex';
@@ -1413,7 +1615,9 @@
         var errDesc = document.getElementById('player-fallback-desc');
         var openSiteText = document.getElementById('player-open-site-text');
 
-        if (fallbackTitle) fallbackTitle.textContent = 'Uygulama İçi Oynatıcı Modu';
+        if (fallbackTitle) {
+          fallbackTitle.textContent = (playbackInfo && playbackInfo.unavailable) ? 'İçerik Kullanılamıyor' : 'Uygulama İçi Oynatıcı Modu';
+        }
         if (errDesc) {
           errDesc.textContent = (playbackInfo && playbackInfo.adGateNote) ||
             'Bu bölüm NartoDrama reklam doğrulaması ("İzlemeden önce reklam") veya etkileşimli oynatıcı gerektirmektedir. Kesintisiz izlemek için uygulama içi görünümde açabilirsiniz.';
@@ -1433,18 +1637,7 @@
     stopPlaybackTracking();
     state.playbackTimer = setInterval(function () {
       if (videoEl && !videoEl.paused && videoEl.duration > 0 && global.DramaStorage) {
-        global.DramaStorage.savePlaybackProgress({
-          dramaId: (drama && drama.id) || '',
-          dramaTitle: (drama && drama.title) || 'Dizi',
-          posterUrl: (drama && drama.posterUrl) || '',
-          episodeId: (episode && episode.id) || ('ep_' + (episode && episode.number)),
-          episodeNumber: (episode && episode.number) || '',
-          episodeTitle: (episode && episode.title) || '',
-          positionSec: videoEl.currentTime,
-          durationSec: videoEl.duration,
-          url: (episode && episode.url) || (drama && drama.url) || '',
-          streamUrl: streamUrl
-        });
+        saveCurrentEpisodeProgress(drama, episode, videoEl.currentTime, videoEl.duration, streamUrl);
       }
     }, 5000);
   }
@@ -1464,19 +1657,10 @@
 
     if (videoEl) {
       videoEl.onerror = null;
+      videoEl.onended = null;
       // Save final playback position before pausing
-      if (videoEl.duration > 0 && global.DramaStorage && state.currentEpisode) {
-        global.DramaStorage.savePlaybackProgress({
-          dramaId: (state.currentDrama && state.currentDrama.id) || '',
-          dramaTitle: (state.currentDrama && state.currentDrama.title) || 'Dizi',
-          posterUrl: (state.currentDrama && state.currentDrama.posterUrl) || '',
-          episodeId: state.currentEpisode.id || ('ep_' + state.currentEpisode.number),
-          episodeNumber: state.currentEpisode.number || '',
-          episodeTitle: state.currentEpisode.title || '',
-          positionSec: videoEl.currentTime,
-          durationSec: videoEl.duration,
-          url: state.currentEpisode.url || ''
-        });
+      if (videoEl.duration > 0 && global.DramaStorage && state.currentEpisode && !state.currentEpisode.isSample) {
+        saveCurrentEpisodeProgress(state.currentDrama, state.currentEpisode, videoEl.currentTime, videoEl.duration, state.currentStreamUrl);
       }
       videoEl.pause();
       videoEl.removeAttribute('src');
@@ -1487,19 +1671,49 @@
       iframeEl.src = 'about:blank';
     }
 
-    var bottomBar = document.getElementById('player-bottom-bar');
-    if (bottomBar) {
-      bottomBar.style.display = 'none';
-    }
-
     if (modal) {
       modal.classList.remove('open');
     }
 
     state.currentEpisode = null;
+    state.currentStreamUrl = '';
     if (state.currentTab === 'home') {
       renderContinueWatchingRail();
     }
+    if (state.currentDrama && Array.isArray(state.currentEpisodes) && state.currentEpisodes.length > 0) {
+      var episodesGrid = document.getElementById('detail-episodes-grid');
+      var detailModal = document.getElementById('detail-modal');
+      if (episodesGrid && detailModal && detailModal.classList.contains('open')) {
+        renderEpisodesGrid(episodesGrid, state.currentEpisodes);
+      }
+    }
+  }
+
+  // ========================================================================
+  // DISMISSIBLE NOTICES INITIALIZATION
+  // ========================================================================
+  function initDismissibleNotices() {
+    var dismissBtns = document.querySelectorAll('.notice-dismiss-btn');
+    dismissBtns.forEach(function (btn) {
+      var targetId = btn.getAttribute('data-dismiss-target');
+      if (targetId && global.DramaStorage && typeof global.DramaStorage.isNoticeDismissed === 'function') {
+        if (global.DramaStorage.isNoticeDismissed(targetId)) {
+          var existingEl = document.getElementById(targetId);
+          if (existingEl) existingEl.style.display = 'none';
+        }
+      }
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var id = btn.getAttribute('data-dismiss-target');
+        var targetEl = id ? document.getElementById(id) : btn.closest('.policy-notice-box, .status-banner');
+        if (targetEl) {
+          targetEl.style.display = 'none';
+        }
+        if (id && global.DramaStorage && typeof global.DramaStorage.dismissNotice === 'function') {
+          global.DramaStorage.dismissNotice(id);
+        }
+      });
+    });
   }
 
   // ========================================================================
@@ -1554,6 +1768,7 @@
       });
     });
 
+    initDismissibleNotices();
     initHomeTab();
     initSearchTab();
     initDownloadsTab();

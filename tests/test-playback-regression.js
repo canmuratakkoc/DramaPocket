@@ -98,6 +98,20 @@ async function runPlaybackRegressionTests() {
                 "watch_url": "https://nartodrama.com/detail/watch/test-drama/2",
                 "play_url": "",
                 "direct_play_url": "",
+                "multi_resolutions": [
+                    {
+                        "resolution": 1080,
+                        "label": "1080p",
+                        "stream_url": "https://shortmax-stream.narto-drama.com/token1080/main.m3u8",
+                        "is_default": true
+                    },
+                    {
+                        "resolution": 720,
+                        "label": "720p",
+                        "stream_url": "https://shortmax-stream.narto-drama.com/token720/main.m3u8",
+                        "is_default": false
+                    }
+                ],
                 "meta": {
                     "comments": ["Bekliyoruz"],
                     "ad_gate": true
@@ -117,7 +131,11 @@ async function runPlaybackRegressionTests() {
         assert.strictEqual(parsed.length, 2, 'Should extract exactly 2 episodes from mock HTML');
         assert.strictEqual(parsed[0].number, '1', 'Episode 1 number should match');
         assert.strictEqual(parsed[0].title, 'Bölüm 1: Başlangıç', 'Episode 1 title should match');
-        console.log('  -> PASS: Synthetic nested episodeItemsRaw successfully parsed');
+        assert.strictEqual(parsed[1].playUrl, 'https://shortmax-stream.narto-drama.com/token1080/main.m3u8',
+            'Episode 2 must resolve playUrl from multi_resolutions when play_url is empty');
+        assert.strictEqual(parsed[1].directPlayUrl, 'https://shortmax-stream.narto-drama.com/token720/main.m3u8',
+            'Episode 2 must resolve secondary directPlayUrl from multi_resolutions');
+        console.log('  -> PASS: Synthetic nested episodeItemsRaw and multi_resolutions successfully parsed');
     } else {
         console.log('  -> NOTE: SiteAdapter._extractEpisodeItemsFromHtml private, testing via getDramaDetails');
     }

@@ -44,7 +44,10 @@
               <span id="status-dot" class="status-dot online" aria-hidden="true"></span>
               <span id="status-title" class="status-title">NartoDrama Bağlantısı</span>
             </div>
-            <span id="status-badge" class="meta-tag">Canlı Kaynak</span>
+            <div class="status-header-right">
+              <span id="status-badge" class="meta-tag">Canlı Kaynak</span>
+              <button type="button" class="notice-dismiss-btn" data-dismiss-target="home-status-banner" aria-label="Bildirimi Kapat" title="Bildirimi Kapat">✕</button>
+            </div>
           </div>
           <p id="status-desc" class="status-desc">
             NartoDrama resmi web sitesi bağlantısı kontrol ediliyor...
@@ -64,6 +67,7 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 14.5v-9l6 4.5z"/></svg>
               İzlemeye Devam Et
             </h2>
+            <button id="btn-clear-continue" class="section-action-btn" type="button">Temizle</button>
           </div>
           <div id="rail-continue-watching" class="horizontal-rail">
             <!-- Rendered dynamically -->
@@ -229,13 +233,14 @@
         </div>
 
         <!-- Official NartoDrama Policy Explanation Banner -->
-        <div class="policy-notice-box">
+        <div id="downloads-policy-notice" class="policy-notice-box">
           <svg class="policy-notice-icon" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M11 17h2v-6h-2v6zm1-15C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zM11 9h2V7h-2v2z"/>
           </svg>
           <div class="policy-notice-text">
             <strong>Bilgi:</strong> NartoDrama resmi SSS politikası gereği dizi bölümlerinin çevrimdışı indirilmesi desteklenmemektedir. İndirme yöneticisi yalnızca açık lisanslı/yetkili medya dosyaları için aktiftir; ayrıca cihazınızdaki yerel video dosyalarını içe aktararak izleyebilirsiniz.
           </div>
+          <button type="button" class="notice-dismiss-btn" data-dismiss-target="downloads-policy-notice" aria-label="Uyarıyı Kapat" title="Uyarıyı Kapat">✕</button>
         </div>
 
         <!-- Local Video Import Card -->
@@ -367,13 +372,14 @@
           </div>
 
           <!-- Policy Restriction Banner on Episodes -->
-          <div class="policy-notice-box" style="margin-bottom: 16px;">
+          <div id="detail-policy-notice" class="policy-notice-box" style="margin-bottom: 16px;">
             <svg class="policy-notice-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
             </svg>
             <div class="policy-notice-text">
               <strong>İndirme Kısıtlaması:</strong> NartoDrama resmi politikası gereği dizi bölümlerinin çevrimdışı indirilmesi desteklenmemektedir. Bölümleri doğrudan uygulama içinden veya canlı sitede izleyebilirsiniz.
             </div>
+            <button type="button" class="notice-dismiss-btn" data-dismiss-target="detail-policy-notice" aria-label="Uyarıyı Kapat" title="Uyarıyı Kapat">✕</button>
           </div>
 
           <!-- Episodes Section -->
@@ -402,7 +408,14 @@
           <span id="player-drama-title" class="player-main-title">Dizi Başlığı</span>
           <span id="player-episode-title" class="player-sub-title">Bölüm 1</span>
         </div>
-        <div style="width: 36px;"></div> <!-- balance spacer -->
+        <div class="player-nav-controls">
+          <button id="player-prev-btn" class="player-ep-nav-btn" type="button" title="Önceki Bölüm" aria-label="Önceki Bölüm" style="display: none;">
+            <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+          </button>
+          <button id="player-next-btn" class="player-ep-nav-btn" type="button" title="Sonraki Bölüm" aria-label="Sonraki Bölüm" style="display: none;">
+            <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+          </button>
+        </div>
       </div>
 
       <div id="player-viewport" class="player-viewport-container">
@@ -424,14 +437,6 @@
             <span id="player-open-site-text">Uygulama İçi Oynatıcıda Aç</span>
           </button>
         </div>
-      </div>
-
-      <!-- Player Bottom Action Bar for ad-gate verification / alternative in-app webview player -->
-      <div id="player-bottom-bar" class="player-bottom-bar" style="display: none;">
-        <button id="player-alt-site-btn" class="player-alt-action-btn" type="button" title="Uygulama İçi Bölüm Sayfasında Aç (Reklam Doğrulama / Alternatif Oynatıcı)">
-          <svg viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
-          <span>Uygulama İçi Bölüm Sayfasında Aç (Reklam Doğrulama / Alternatif Oynatıcı)</span>
-        </button>
       </div>
     </div>
 

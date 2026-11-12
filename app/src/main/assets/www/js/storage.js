@@ -10,9 +10,39 @@
     FAVORITES: 'dramapocket_favorites_v1',
     RECENTLY_VIEWED: 'dramapocket_recent_v1',
     CONTINUE_WATCHING: 'dramapocket_progress_v1',
+    EPISODE_PROGRESS: 'dramapocket_ep_progress_v1',
     DOWNLOADS: 'dramapocket_downloads_v1',
-    SEARCH_HISTORY: 'dramapocket_searches_v1'
+    SEARCH_HISTORY: 'dramapocket_searches_v1',
+    DISMISSED_NOTICES: 'dramapocket_dismissed_notices_v1'
   };
+
+  /**
+   * Compute a canonical key identifying a drama across different episode URLs or IDs.
+   * Ensures that multiple episodes of the same series resolve to the same drama key.
+   */
+  function getDramaKey(item) {
+    if (!item || typeof item !== 'object') return '';
+    var candidateUrls = [item.dramaUrl, item.url, item.dramaId, item.id];
+    for (var i = 0; i < candidateUrls.length; i++) {
+      var val = String(candidateUrls[i] || '').trim();
+      if (!val) continue;
+      var slugMatch = val.match(/\/detail\/watch\/([^/?#]+)/i);
+      if (slugMatch && slugMatch[1]) {
+        return 'slug:' + slugMatch[1].toLowerCase();
+      }
+    }
+    if (item.dramaId && String(item.dramaId).trim()) {
+      return 'id:' + String(item.dramaId).trim().toLowerCase();
+    }
+    if (item.id && !item.episodeId && String(item.id).trim()) {
+      return 'id:' + String(item.id).trim().toLowerCase();
+    }
+    var titleCandidate = String(item.dramaTitle || (!item.episodeId && item.title) || '').trim().toLowerCase();
+    if (titleCandidate && titleCandidate !== 'dizi' && titleCandidate !== 'isimsiz dizi' && titleCandidate !== 'İsimsiz dizi') {
+      return 'title:' + titleCandidate;
+    }
+    return '';
+  }
 
   var memoryFallback = {};
 
@@ -149,20 +179,33 @@
     },
 
     // ----------------------------------------------------
-    // RECENTLY VIEWED (Last 20)
+    // RECENTLY VIEWED (Last 20, deduplicated by drama)
     // ----------------------------------------------------
     getRecentlyViewed: function () {
       var list = getItem(STORAGE_KEYS.RECENTLY_VIEWED, []);
-      return Array.isArray(list) ? list : [];
+      if (!Array.isArray(list)) return [];
+      var seenKeys = {};
+      var deduplicated = [];
+      for (var i = 0; i < list.length; i++) {
+        var it = list[i];
+        var key = getDramaKey(it) || String(it.id || it.url || i);
+        if (!seenKeys[key]) {
+          seenKeys[key] = true;
+          deduplicated.push(it);
+        }
+      }
+      return deduplicated;
     },
 
     addRecentlyViewed: function (drama) {
       if (!drama || (!drama.id && !drama.url)) return;
       var list = this.getRecentlyViewed();
       var id = String(drama.id || drama.url).trim();
+      var targetDramaKey = getDramaKey(drama);
 
-      // Filter out existing
+      // Filter out existing entry for the same drama
       var filtered = list.filter(function (it) {
+        if (targetDramaKey && getDramaKey(it) === targetDramaKey) return false;
         return String(it.id).trim() !== id && (!it.url || String(it.url).trim() !== id);
       });
 
@@ -193,23 +236,46 @@
     },
 
     // ----------------------------------------------------
-    // CONTINUE WATCHING (Playback Progress)
+    // CONTINUE WATCHING (Playback Progress - 1 latest episode per drama)
     // ----------------------------------------------------
     getContinueWatching: function () {
       var list = getItem(STORAGE_KEYS.CONTINUE_WATCHING, []);
       if (!Array.isArray(list)) return [];
-      // Return sorted by updatedAt descending
-      return list.sort(function (a, b) {
+      // Sort by updatedAt descending so the newest episode of each drama comes first
+      var sorted = list.slice().sort(function (a, b) {
         return (b.updatedAt || 0) - (a.updatedAt || 0);
       });
+      var seenDramas = {};
+      var deduplicated = [];
+      for (var i = 0; i < sorted.length; i++) {
+        var item = sorted[i];
+        var dKey = getDramaKey(item) || ('ep:' + String(item.episodeId || i).trim());
+        if (!seenDramas[dKey]) {
+          seenDramas[dKey] = true;
+          deduplicated.push(item);
+        }
+      }
+      // If legacy duplicate episodes for the same drama existed in storage, persist the cleaned list
+      if (deduplicated.length !== list.length) {
+        setItem(STORAGE_KEYS.CONTINUE_WATCHING, deduplicated);
+      }
+      return deduplicated;
     },
 
     getEpisodeProgress: function (episodeId) {
       if (!episodeId) return null;
-      var list = this.getContinueWatching();
       var epId = String(episodeId).trim();
+      var epList = getItem(STORAGE_KEYS.EPISODE_PROGRESS, []);
+      if (Array.isArray(epList)) {
+        for (var j = 0; j < epList.length; j++) {
+          if (String(epList[j].episodeId).trim() === epId || (epList[j].url && String(epList[j].url).trim() === epId)) {
+            return epList[j];
+          }
+        }
+      }
+      var list = this.getContinueWatching();
       for (var i = 0; i < list.length; i++) {
-        if (String(list[i].episodeId).trim() === epId) {
+        if (String(list[i].episodeId).trim() === epId || (list[i].url && String(list[i].url).trim() === epId)) {
           return list[i];
         }
       }
@@ -229,6 +295,7 @@
       var entry = {
         dramaId: data.dramaId || '',
         dramaTitle: data.dramaTitle || '',
+        dramaUrl: data.dramaUrl || '',
         posterUrl: data.posterUrl || '',
         episodeId: epId,
         episodeNumber: data.episodeNumber !== undefined ? data.episodeNumber : '',
@@ -239,16 +306,32 @@
         completed: isCompleted,
         url: data.url || '',
         streamUrl: data.streamUrl || '',
+        directPlayUrl: data.directPlayUrl || '',
         updatedAt: Date.now()
       };
 
-      // Filter out existing record with same episodeId
-      var filtered = list.filter(function (it) {
+      // 1. Save individual episode progress in EPISODE_PROGRESS for episode grid indicators
+      var epList = getItem(STORAGE_KEYS.EPISODE_PROGRESS, []);
+      if (!Array.isArray(epList)) epList = [];
+      var epFiltered = epList.filter(function (it) {
         return String(it.episodeId).trim() !== epId;
+      });
+      epFiltered.unshift(entry);
+      if (epFiltered.length > 200) {
+        epFiltered = epFiltered.slice(0, 200);
+      }
+      setItem(STORAGE_KEYS.EPISODE_PROGRESS, epFiltered);
+
+      // 2. Save in CONTINUE_WATCHING, replacing any previous episode of the SAME drama
+      var targetDramaKey = getDramaKey(entry);
+      var filtered = list.filter(function (it) {
+        if (String(it.episodeId).trim() === epId) return false;
+        if (targetDramaKey && getDramaKey(it) === targetDramaKey) return false;
+        return true;
       });
 
       filtered.unshift(entry);
-      // Keep maximum 30 active progress records
+      // Keep maximum 30 active drama progress records
       if (filtered.length > 30) {
         filtered = filtered.slice(0, 30);
       }
@@ -262,9 +345,17 @@
       var list = this.getContinueWatching();
       var epId = String(episodeId).trim();
       var filtered = list.filter(function (it) {
-        return String(it.episodeId).trim() !== epId;
+        return String(it.episodeId).trim() !== epId && String(it.dramaId).trim() !== epId;
       });
       setItem(STORAGE_KEYS.CONTINUE_WATCHING, filtered);
+
+      var epList = getItem(STORAGE_KEYS.EPISODE_PROGRESS, []);
+      if (Array.isArray(epList)) {
+        var epFiltered = epList.filter(function (it) {
+          return String(it.episodeId).trim() !== epId && String(it.dramaId).trim() !== epId;
+        });
+        setItem(STORAGE_KEYS.EPISODE_PROGRESS, epFiltered);
+      }
     },
 
     // ----------------------------------------------------
@@ -398,6 +489,31 @@
 
     clearRecentSearches: function () {
       setItem(STORAGE_KEYS.SEARCH_HISTORY, []);
+    },
+
+    clearContinueWatching: function () {
+      setItem(STORAGE_KEYS.CONTINUE_WATCHING, []);
+    },
+
+    // ----------------------------------------------------
+    // DISMISSIBLE NOTICES & WARNING BANNERS
+    // ----------------------------------------------------
+    isNoticeDismissed: function (noticeId) {
+      if (!noticeId) return false;
+      var map = getItem(STORAGE_KEYS.DISMISSED_NOTICES, {});
+      return !!(map && typeof map === 'object' && map[String(noticeId)]);
+    },
+
+    dismissNotice: function (noticeId) {
+      if (!noticeId) return;
+      var map = getItem(STORAGE_KEYS.DISMISSED_NOTICES, {});
+      if (!map || typeof map !== 'object') map = {};
+      map[String(noticeId)] = Date.now();
+      setItem(STORAGE_KEYS.DISMISSED_NOTICES, map);
+    },
+
+    resetDismissedNotices: function () {
+      setItem(STORAGE_KEYS.DISMISSED_NOTICES, {});
     }
   };
 

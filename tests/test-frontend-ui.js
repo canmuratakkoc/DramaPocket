@@ -82,6 +82,22 @@ function runFrontendTests() {
         'styles.css should include modern responsive styling');
     console.log('  -> PASS: Mobile layout and styling verified');
 
+    // 6. Auto-Advance on Episode End & Episode Navigation Controls
+    console.log('[Test 6] Auto-Advance on Video End & Episode Navigation Controls');
+    assert(appJs.includes('videoEl.onended'), 'app.js must attach an onended handler to videoEl for auto-advancing to the next episode');
+    assert(appJs.includes('getAdjacentEpisode(1)'), 'app.js must resolve the next episode when current episode finishes');
+    assert(html.includes('id="player-prev-btn"') && html.includes('id="player-next-btn"'),
+        'index.html must include previous and next episode buttons in player top bar');
+    console.log('  -> PASS: Auto-advance and episode navigation controls verified');
+
+    // 7. No Permanent Player Warning & Dismissible Notices Across App
+    console.log('[Test 7] Removal of Permanent Player Warning & Dismissible Notices');
+    assert(!html.includes('id="player-bottom-bar"'), 'index.html must NOT contain permanent #player-bottom-bar overlay on the video player');
+    assert(!appJs.includes("bottomBar.style.display = 'flex'"), 'app.js must NOT display a permanent bottom warning bar during playback');
+    assert(html.includes('class="notice-dismiss-btn"'), 'All notice banners in index.html must include a dismiss button (.notice-dismiss-btn)');
+    assert(appJs.includes('toast-dismiss-btn'), 'Toast notifications must include a dismiss button (.toast-dismiss-btn)');
+    console.log('  -> PASS: Permanent player warning removed and all notices are dismissible');
+
     console.log('=== All Frontend UI Tests PASSED ===\n');
     return true;
 }

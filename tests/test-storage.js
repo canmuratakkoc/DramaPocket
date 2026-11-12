@@ -125,7 +125,59 @@ function runStorageTests() {
     storage.removeContinueWatching('ep-2');
     assert.strictEqual(storage.getEpisodeProgress('ep-2'), null);
     assert.strictEqual(storage.getContinueWatching().length, 0);
-    console.log('  -> PASS: Continue watching progress save/restore/remove verified');
+
+    // 3b. Continue Watching Deduplication by Drama (Only Latest Episode Shown in Continue Watching)
+    console.log('[Test 3b] Continue Watching Deduplication: Same Drama Multiple Episodes -> Only Latest Episode Shown');
+    storage.savePlaybackProgress({
+        dramaId: 'erden-generallige',
+        dramaTitle: 'Erden Generalliğe',
+        dramaUrl: 'https://nartodrama.com/detail/watch/erden-generallige?lang=tr-TR',
+        episodeId: 'ep-101',
+        episodeNumber: 1,
+        episodeTitle: 'Bölüm 1',
+        positionSec: 120,
+        durationSec: 120,
+        url: 'https://nartodrama.com/detail/watch/erden-generallige/1?lang=tr-TR'
+    });
+    storage.savePlaybackProgress({
+        dramaId: 'erden-generallige',
+        dramaTitle: 'Erden Generalliğe',
+        dramaUrl: 'https://nartodrama.com/detail/watch/erden-generallige?lang=tr-TR',
+        episodeId: 'ep-102',
+        episodeNumber: 2,
+        episodeTitle: 'Bölüm 2',
+        positionSec: 60,
+        durationSec: 120,
+        url: 'https://nartodrama.com/detail/watch/erden-generallige/2?lang=tr-TR'
+    });
+    storage.savePlaybackProgress({
+        dramaId: 'erden-generallige',
+        dramaTitle: 'Erden Generalliğe',
+        dramaUrl: 'https://nartodrama.com/detail/watch/erden-generallige?lang=tr-TR',
+        episodeId: 'ep-103',
+        episodeNumber: 3,
+        episodeTitle: 'Bölüm 3',
+        positionSec: 30,
+        durationSec: 120,
+        url: 'https://nartodrama.com/detail/watch/erden-generallige/3?lang=tr-TR'
+    });
+
+    const dedupedContinue = storage.getContinueWatching();
+    assert.strictEqual(dedupedContinue.length, 1, 'Continue Watching must only contain 1 entry per drama');
+    assert.strictEqual(dedupedContinue[0].episodeId, 'ep-103', 'Continue Watching must show the most recently watched episode (ep-103)');
+    assert.strictEqual(dedupedContinue[0].episodeNumber, 3);
+    assert(storage.getEpisodeProgress('ep-101') !== null, 'Individual episode progress for ep-101 must still be preserved for detail grid');
+    assert(storage.getEpisodeProgress('ep-102') !== null, 'Individual episode progress for ep-102 must still be preserved for detail grid');
+    console.log('  -> PASS: Continue watching deduplication by drama verified');
+
+    // 3c. Dismissible Notices Persistence
+    console.log('[Test 3c] Dismissible Notices Persistence');
+    assert.strictEqual(storage.isNoticeDismissed('detail-policy-notice'), false);
+    storage.dismissNotice('detail-policy-notice');
+    assert.strictEqual(storage.isNoticeDismissed('detail-policy-notice'), true);
+    storage.resetDismissedNotices();
+    assert.strictEqual(storage.isNoticeDismissed('detail-policy-notice'), false);
+    console.log('  -> PASS: Dismissible notices persistence verified');
 
     // 4. Download Records Tests
     console.log('[Test 4] Download Records');
